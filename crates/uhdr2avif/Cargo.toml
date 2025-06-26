@@ -1,0 +1,11 @@
+[package]
+name = "uhdr2avif"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = "0.4"
+fern = { version = "0.7", features = ["colored"] }
+chrono = "0.4.41"
+clap = { version = "4.5.38", features = ["derive"] }
+libuhdr = { path = "../libuhdr", features = ["avif"] }

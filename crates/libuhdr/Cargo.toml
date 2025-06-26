@@ -1,0 +1,28 @@
+[package]
+name = "libuhdr"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["avif"]
+exr = ["dep:exr"]
+avif = ["dep:ravif", "dep:rav1e"]
+heif = ["dep:libheif-rs"]
+
+[dependencies]
+num-traits = "0.2"
+num-derive = "0.4"
+derive_more = { version = "2", features = ["full"] }
+log = "0.4"
+
+# `zune-jpeg` must be a version that supports `ImageInfo::multi_picture_information`.
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "4a073b1" }
+# zune-jpeg = { path = "../../../zune-image/crates/zune-jpeg" } # Use this instead when developing locally; The version on crates.io does not support `ImageInfo::multi_picture_information`.
+roxmltree = "0.20.0"
+lcms2 = "6.1.0"
+
+exr = { optional = true, version = "1.73.0" }
+ravif = { optional = true, git = "https://github.com/James2022-rgb/cavif-rs", branch = "feature/encode_raw_plane_10_with_params", default-features = false, features = ["threading"] }
+# ravif = { optional = true, path = "../../../cavif-rs/ravif", default-features = false, features = ["threading"] } # Use this instead when developing locally
+rav1e = { optional = true, version = "0.7.1", default-features = false } # Same version as the one used by `ravif`.
+libheif-rs = { optional = true, git = "https://github.com/cykooz/libheif-rs", features = ["embedded-libheif"] }
