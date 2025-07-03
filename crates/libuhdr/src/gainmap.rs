@@ -48,6 +48,16 @@ impl GainMapMetadata {
             hdr_capacity_max,
         })
     }
+
+    pub fn compute_weight_factor(&self, log2_max_display_boost: f32) -> f32 {
+        let unclamped_weight_factor = (log2_max_display_boost - self.hdr_capacity_min) / (self.hdr_capacity_max - self.hdr_capacity_min);
+        if !self.base_rendition_is_hdr {
+            unclamped_weight_factor.clamp(0.0, 1.0)
+        }
+        else {
+            1.0 - unclamped_weight_factor.clamp(0.0, 1.0)
+        }
+    }
 }
 
 impl GainMapMetadata{

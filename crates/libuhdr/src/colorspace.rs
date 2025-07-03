@@ -177,6 +177,7 @@ impl ColorGamut {
         [self.white_point.x, self.white_point.y]
     }
 
+    /// Converts a color value represented in the `src` `ColorGamut` primaries to one represented in the `dst` `ColorGamut` primaries.
     pub fn convert(value: &[f32; 3], src: &Self, dst: &Self) -> [f32; 3] {
         // https://physics.stackexchange.com/questions/487763/how-are-the-matrices-for-the-rgb-to-from-cie-xyz-conversions-generated
 

@@ -1,6 +1,8 @@
 
 use crate::tiff;
 
+/// Represents the Multi-Page File (MPF) information extracted from TIFF bytes,
+/// which can be contained in a JPEG file.
 #[derive(Debug, Clone)]
 pub struct MpfInfo {
     mp_entries: Vec<MpfMpEntry>,

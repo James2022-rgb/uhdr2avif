@@ -1,33 +1,26 @@
 #![cfg(feature = "avif")]
 
+use std::io::Write;
+
 use ravif::*;
-use rav1e::color::ColorPrimaries;
+use rav1e::color::ColorPrimaries as Rav1eColorPrimaries;
 use rav1e::color::TransferCharacteristics as Rav1eTransferCharacteristics;
+use rav1e::color::PixelRange;
 
-use crate::colorspace::ColorGamut;
+use crate::pixel::FloatImageContent;
 
-/// - `f`: A function that takes pixel coordinates (x, y) and returns a tuple of (r, g, b) HDR values in linear nits (cd/m^2).
-pub fn write_rgb_image_to_avif<F: Fn(usize, usize) -> (f32, f32, f32) + Sync>(
-    filename: &str,
+pub fn write_hdr10_linear_pixels_to_avif<W: Write>(
+    writer: &mut W,
     width: usize,
     height: usize,
-    color_gamut: &ColorGamut,
-    f: F,
+    content: &FloatImageContent,
 ) -> std::io::Result<()> {
-    use std::io::Write as _;
-
-    const TRANSFER_CHARACTERISTICS: Rav1eTransferCharacteristics = Rav1eTransferCharacteristics::SMPTE2084;
-    const COLOR_PRIMARIES: ColorPrimaries = ColorPrimaries::BT2020;
-    const MATRIX_COEFFICIENTS: MatrixCoefficients = MatrixCoefficients::BT2020NCL;
-
-    const COLOR_GAMUT: ColorGamut = ColorGamut::bt2020();
-
-    let mut pixels: Vec<[u16; 3]> = Vec::with_capacity(width * height);
+    let mut ycbcr_pixels: Vec<[u16; 3]> = Vec::with_capacity(width * height);
     for y in 0..height {
         for x in 0..width {
-            let (r, g, b) = f(x as usize, y as usize);
+            let pixel = content.get_at(x, y);
 
-            let [r, g , b] = ColorGamut::convert(&[r, g, b], &color_gamut, &COLOR_GAMUT);
+            let [r, g, b] = pixel.rgb();
 
             // Clamp the values to the range [0, 10000] for HDR10 PQ.
             let r = r.clamp(0.0, 10000.0);
@@ -45,7 +38,7 @@ pub fn write_rgb_image_to_avif<F: Fn(usize, usize) -> (f32, f32, f32) + Sync>(
             let cb = (b - y) / 1.8814 + 0.5;
             let cr = (r - y) / 1.4746 + 0.5;
 
-            pixels.push([
+            ycbcr_pixels.push([
                 (y * 1023.0).round() as u16,
                 (cb * 1023.0).round() as u16,
                 (cr * 1023.0).round() as u16,
@@ -53,16 +46,37 @@ pub fn write_rgb_image_to_avif<F: Fn(usize, usize) -> (f32, f32, f32) + Sync>(
         }
     }
 
+    write_hdr10_ycbcr_pixels_to_avif(writer, width, height, &ycbcr_pixels)
+}
+
+/// - `pixels`: A slice of HDR10 pixels, each represented as an array of 3 `u16`` values (Y', Cb, Cr).
+///   The values MUST be in the range [0, 1023].
+pub fn write_hdr10_ycbcr_pixels_to_avif<W: Write>(
+    writer: &mut W,
+    width: usize,
+    height: usize,
+    ycbcr_pixels: &[[u16; 3]],
+) -> std::io::Result<()> {
+    const TRANSFER_CHARACTERISTICS: Rav1eTransferCharacteristics = Rav1eTransferCharacteristics::SMPTE2084;
+    const COLOR_PRIMARIES: Rav1eColorPrimaries = Rav1eColorPrimaries::BT2020;
+    const MATRIX_COEFFICIENTS: MatrixCoefficients = MatrixCoefficients::BT2020NCL;
+
     let res = Encoder::new()
         .with_quality(100.0)
         .with_speed(4)
-        .encode_raw_plane_10_with_params(width, height, pixels.iter().cloned(), None::<[_; 0]>, rav1e::color::PixelRange::Full, TRANSFER_CHARACTERISTICS, COLOR_PRIMARIES, MATRIX_COEFFICIENTS)
+        .encode_raw_plane_10_with_params(
+            width, height,
+            ycbcr_pixels.iter().cloned(),
+            None::<[_; 0]>,
+            PixelRange::Full,
+            TRANSFER_CHARACTERISTICS,
+            COLOR_PRIMARIES,
+            MATRIX_COEFFICIENTS
+        )
         .unwrap()
         ;
 
-    let mut file = std::fs::File::create(filename)?;
-    file.write_all(&res.avif_file)?;
-
+    writer.write_all(&res.avif_file)?;
     Ok(())
 }
 
