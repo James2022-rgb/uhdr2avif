@@ -13,13 +13,19 @@ use libuhdr::UhdrConverter;
 #[command(version, about, long_about = None)]
 struct Args {
     /// The input file to process.
-    /// If not specified, the input is read from stdin.
+    /// If not specified, the program will read from stdin if `--stdin` is enabled.
     #[arg(short='i', long="input")]
     input_file_path: Option<String>,
+    /// Read input from stdin if true.
+    #[arg(long="stdin", default_value_t = false)]
+    stdin: bool,
     /// The output file to write to.
-    /// If not specified, the output is written to stdout.
     #[arg(short='o', long="output")]
     output_file_path: Option<String>,
+    /// Write output to stdout if true.
+    /// If not specified, the program will write to stdout if `--stdout` is provided.
+    #[arg(long="stdout", default_value_t = false)]
+    stdout: bool,
 }
 
 fn main() -> Result<(), String> {
@@ -39,23 +45,27 @@ fn main() -> Result<(), String> {
 
     let args = Args::parse();
     
-    let mut reader: Box<dyn Read> = if let Some(input_file_path) = args.input_file_path {
+    let mut reader : Box<dyn Read> = if let Some(input_file_path) = args.input_file_path {
         trace!("Reading input from file: {}", input_file_path);
         Box::new(File::open(input_file_path).map_err(|e| format!("Failed to open input file: {}", e))?)
-    } else {
+    } else if args.stdin {
         trace!("Reading input from stdin");
         Box::new(std::io::stdin())
+    } else {
+        return Err("No input file specified and stdin not enabled".to_string());
     };
 
     let uhdr_converter = UhdrConverter::new(&mut reader, MAX_DISPLAY_BOOST)
         .map_err(|e| format!("Failed to create UHDR converter: {}", e))?;
 
-    let mut writer : Box<dyn Write> = if let Some(output_file_path) = args.output_file_path {
+    let mut writer: Box<dyn Write> = if let Some(output_file_path) = args.output_file_path {
         trace!("Writing output to file: {}", output_file_path);
         Box::new(File::create(output_file_path).map_err(|e| format!("Failed to create output file: {}", e))?)
-    } else {
+    } else if args.stdout {
         trace!("Writing output to stdout");
         Box::new(std::io::stdout())
+    } else {
+        return Err("No output file specified and stdout not enabled".to_string());
     };
 
     uhdr_converter.convert_to_avif(&mut writer, TARGET_SDR_WHITE_LEVEL)
