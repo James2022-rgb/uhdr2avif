@@ -4,10 +4,18 @@ mod logging;
 use std::fs::File;
 use std::io::{Read, Write};
 
-use log::{trace, error};
+use log::trace;
 use clap::Parser;
 
 use libuhdr::UhdrConverter;
+
+/// Luminance level in nits for sRGB (1, 1, 1) by Windows convention.
+const WINDOWS_SDR_WHITE_LEVEL: f32 = 80.0f32;
+const ASSUMED_DISPLAY_MAX_BRIGHTNESS :f32 = 800.0f32;
+
+const DEFAULT_MAX_DISPLAY_BOOST: f32 = ASSUMED_DISPLAY_MAX_BRIGHTNESS / WINDOWS_SDR_WHITE_LEVEL;
+
+const DEFAULT_TARGET_SDR_WHITE_LEVEL: f32 = WINDOWS_SDR_WHITE_LEVEL;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -26,21 +34,16 @@ struct Args {
     /// If not specified, the program will write to stdout if `--stdout` is provided.
     #[arg(long="stdout", default_value_t = false)]
     stdout: bool,
+    /// The maximum available boost supported by a display, at a given point in time.
+    /// This is a constant value that should be set based on the display's capabilities.
+    #[arg(long="max-display-boost", default_value_t = DEFAULT_MAX_DISPLAY_BOOST)]
+    max_display_boost: f32,
+    /// The target SDR white level in nits to scale (1, 1, 1) to.
+    #[arg(long="target-sdr-white-level", default_value_t = DEFAULT_TARGET_SDR_WHITE_LEVEL)]
+    target_sdr_white_level: f32,
 }
 
 fn main() -> Result<(), String> {
-    /// Luminance level in nits for sRGB (1, 1, 1) by Windows convention.
-    const WINDOWS_SDR_WHITE_LEVEL: f32 = 80.0f32;
-
-    // FIXME: The maximum brightness of the display in nits.
-    const ASSUMED_DISPLAY_MAX_BRIGHTNESS :f32 = 930.0f32;
-
-    // FIXME: The maximum available boost supported by a display, at a given point in time.
-    const MAX_DISPLAY_BOOST: f32 = ASSUMED_DISPLAY_MAX_BRIGHTNESS / WINDOWS_SDR_WHITE_LEVEL;
-
-    // FIXME: Test value:
-    const TARGET_SDR_WHITE_LEVEL: f32 = 240.0;
-
     logging::LoggingConfig::default().apply();
 
     let args = Args::parse();
@@ -55,7 +58,9 @@ fn main() -> Result<(), String> {
         return Err("No input file specified and stdin not enabled".to_string());
     };
 
-    let uhdr_converter = UhdrConverter::new(&mut reader, MAX_DISPLAY_BOOST)
+    let max_display_boost = args.max_display_boost;
+
+    let uhdr_converter = UhdrConverter::new(&mut reader, max_display_boost)
         .map_err(|e| format!("Failed to create UHDR converter: {}", e))?;
 
     let mut writer: Box<dyn Write> = if let Some(output_file_path) = args.output_file_path {
@@ -68,7 +73,9 @@ fn main() -> Result<(), String> {
         return Err("No output file specified and stdout not enabled".to_string());
     };
 
-    uhdr_converter.convert_to_avif(&mut writer, TARGET_SDR_WHITE_LEVEL)
+    let target_sdr_white_level = args.target_sdr_white_level;
+
+    uhdr_converter.convert_to_avif(&mut writer, target_sdr_white_level)
         .map_err(|e| format!("Failed to convert UHDR JPEG to AVIF: {}", e))?;
     
     Ok(())
