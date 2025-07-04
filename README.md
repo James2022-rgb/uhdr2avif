@@ -1,4 +1,4 @@
-# 🚧 uhdr2avif
+# uhdr2avif
 
 A set of minimal Rust crates for Ultra HDR JPEG to AVIF conversion.
 
@@ -7,4 +7,6 @@ A set of minimal Rust crates for Ultra HDR JPEG to AVIF conversion.
 Supports all platforms compatible with the [`lcms2`](https://crates.io/crates/lcms2) Rust crate, which relies on the native [Little CMS](https://www.littlecms.com/) C library.
 
 ## ⚠️ Work-in-progress
-This is a work-in-progress PoC, and is currently a lot slower that it could be.
+~~This is a work-in-progress PoC, and is currently a lot slower that it could be~~.
+
+It mostly does its originally intended job now, and the AV1 encoding in rav1e seems to take up most of its runtime.
