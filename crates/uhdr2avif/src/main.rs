@@ -36,9 +36,11 @@ struct Args {
     stdout: bool,
     /// The maximum available boost supported by a display, at a given point in time.
     /// This is a constant value that should be set based on the display's capabilities.
+    /// This value is used to compute the boosted Ultra HDR "HDR rendition" value.
     #[arg(long="max-display-boost", default_value_t = DEFAULT_MAX_DISPLAY_BOOST)]
     max_display_boost: f32,
     /// The target SDR white level in nits to scale (1, 1, 1) to.
+    /// The boosted Ultra HDR "HDR rendition" value is scaled by this value.
     #[arg(long="target-sdr-white-level", default_value_t = DEFAULT_TARGET_SDR_WHITE_LEVEL)]
     target_sdr_white_level: f32,
 }
