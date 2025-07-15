@@ -1,58 +1,44 @@
-name: CI/CD
+name: Release Multi-Target
 
 on:
   release:
     types: [published]
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  release:
+  build:
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-pc-windows-msvc
-          - x86_64-apple-darwin
         include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact_name: uhdr2avif
-            asset_name: uhdr2avif-linux-x86_64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact_name: uhdr2avif.exe
-            asset_name: uhdr2avif-windows-x86_64.exe
+            ext: .exe
           - target: x86_64-apple-darwin
             os: macos-latest
-            artifact_name: uhdr2avif
-            asset_name: uhdr2avif-macos-x86_64
-    
+            ext: ""
+
+    name: Build for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
-    
-    - name: Cache dependencies
-      uses: Swatinem/rust-cache@v2
-    
-    - name: Build CLI tool
-      run: cargo build --release --bin uhdr2avif --target ${{ matrix.target }}
-    
-    - name: Prepare release asset
-      run: |
-        mkdir -p release-assets
-        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release-assets/${{ matrix.asset_name }}
-    
-    - name: Upload release asset
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release-assets/${{ matrix.asset_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release -p uhdr2avif --target ${{ matrix.target }}
+
+      - name: Rename and prepare binary
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/uhdr2avif${{ matrix.ext }} dist/uhdr2avif-${{ matrix.target }}${{ matrix.ext }}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/uhdr2avif-${{ matrix.target }}${{ matrix.ext }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
