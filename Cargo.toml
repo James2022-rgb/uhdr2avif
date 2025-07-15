@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "crates/libuhdr",
+    "crates/uhdr2avif"
+]
