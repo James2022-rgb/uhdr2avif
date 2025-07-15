@@ -45,33 +45,14 @@ jobs:
     - name: Build CLI tool
       run: cargo build --release --bin uhdr2avif --target ${{ matrix.target }}
     
-    - name: Create and upload release assets
+    - name: Prepare release asset
       run: |
         mkdir -p release-assets
-        for target in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc x86_64-apple-darwin; do
-          case $target in
-            x86_64-unknown-linux-gnu)
-              artifact_name="uhdr2avif"
-              asset_name="uhdr2avif-linux-x86_64"
-              ;;
-            x86_64-pc-windows-msvc)
-              artifact_name="uhdr2avif.exe"
-              asset_name="uhdr2avif-windows-x86_64.exe"
-              ;;
-            x86_64-apple-darwin)
-              artifact_name="uhdr2avif"
-              asset_name="uhdr2avif-macos-x86_64"
-              ;;
-          esac
-          if [ -f "target/$target/release/$artifact_name" ]; then
-            cp "target/$target/release/$artifact_name" "release-assets/$asset_name"
-          fi
-        done
-        ls -la release-assets/
+        cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} release-assets/${{ matrix.asset_name }}
     
-    - name: Upload release assets
+    - name: Upload release asset
       uses: softprops/action-gh-release@v1
       with:
-        files: release-assets/*
+        files: release-assets/${{ matrix.asset_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
