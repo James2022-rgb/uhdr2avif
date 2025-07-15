@@ -34,11 +34,24 @@ jobs:
       - name: Rename and prepare binary
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/uhdr2avif${{ matrix.ext }} dist/uhdr2avif-${{ matrix.target }}${{ matrix.ext }}
+          mkdir -p dist/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/uhdr2avif${{ matrix.ext }} dist/${{ matrix.target }}/uhdr2avif${{ matrix.ext }}
+          
+      - name: Zip binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd dist
+          Compress-Archive -Path ${{ matrix.target }}/uhdr2avif${{ matrix.ext }} -DestinationPath uhdr2avif-${{ matrix.target }}.zip
+
+      - name: Zip binary (Windows)
+        if: runner.os != 'Windows'
+        run: |
+          cd dist
+          zip -j uhdr2avif-${{ matrix.target }}.zip ${{ matrix.target }}/uhdr2avif${{ matrix.ext }}
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/uhdr2avif-${{ matrix.target }}${{ matrix.ext }}
+          files: dist/uhdr2avif-${{ matrix.target }}.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.UHDR2AVIF_RELEASE }}
