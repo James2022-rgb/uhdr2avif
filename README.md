@@ -5,6 +5,8 @@
 
 **CLI tool and core library written in 🦀Rust for [Ultra HDR](https://developer.android.com/media/platform/hdr-image-format) JPEG to AVIF conversion**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 </div>
 
 ## 🖥️ Platform Support
