@@ -150,16 +150,8 @@ impl UhdrJpeg {
         x: usize,
         y: usize,
     ) -> [f32; 3] {
-        let mut rgb = self.fetch_pixel(x, y);
-        if let Some(icc_color_space) = &self.content.icc_color_space {
-            rgb = icc_color_space.transfer_characteristics.evaluate(&rgb);
-        } else {
-            // Assume 2.2 gamma, which is the default for most JPEGs and is the best we can do without an ICC profile.
-            rgb[0] = rgb[0].powf(2.2);
-            rgb[1] = rgb[1].powf(2.2);
-            rgb[2] = rgb[2].powf(2.2);
-        }
-        rgb
+        let rgb = self.fetch_pixel(x, y);
+        self.to_linear(rgb)
     }
 
     /// Samples a pixel coordinate using bilinear filtering and clamp addressing.
@@ -194,10 +186,10 @@ impl UhdrJpeg {
         let base_x = (base_x as usize).clamp(0, self.jpeg_info.width as usize - 1);
         let base_y = (base_y as usize).clamp(0, self.jpeg_info.height as usize - 1);
 
-        let p00 = self.get_pixel_as_rgb888_unorm(base_x, base_y);
-        let p01 = self.get_pixel_as_rgb888_unorm(base_x, base_y + 1);
-        let p10 = self.get_pixel_as_rgb888_unorm(base_x + 1, base_y);
-        let p11 = self.get_pixel_as_rgb888_unorm(base_x + 1, base_y + 1);
+        let p00 = self.get_pixel_as_rgb888_unorm_linear(base_x, base_y);
+        let p01 = self.get_pixel_as_rgb888_unorm_linear(base_x, base_y + 1);
+        let p10 = self.get_pixel_as_rgb888_unorm_linear(base_x + 1, base_y);
+        let p11 = self.get_pixel_as_rgb888_unorm_linear(base_x + 1, base_y + 1);
 
         let p00 = p00.unwrap_or([0.0, 0.0, 0.0]);
         let p01 = p01.unwrap_or([0.0, 0.0, 0.0]);
@@ -227,14 +219,12 @@ impl UhdrJpeg {
 }
 
 impl UhdrJpeg {
-    
-
-    fn get_pixel_as_rgb888_unorm(&self, x: usize, y: usize) -> Option<[f32; 3]> {
+    fn get_pixel_as_rgb888_unorm_linear(&self, x: usize, y: usize) -> Option<[f32; 3]> {
         let [r, g, b] = self.get_pixel_as_rgb888(x, y)?;
         let r = r as f32 / 255.0;
         let g = g as f32 / 255.0;
         let b = b as f32 / 255.0;
-        Some([r, g, b])
+        Some(self.to_linear([r, g, b]))
     }
 
     fn get_pixel_as_rgb888(&self, x: usize, y: usize) -> Option<[u8; 3]> {
@@ -254,5 +244,19 @@ impl UhdrJpeg {
         } else {
             None
         }
+    }
+
+    /// Applies the EOTF according the `IccColorSpace` if available.
+    /// If no `IccColorSpace` is available, the EOTF is assumed to be gamma of `2.2`.
+    fn to_linear(&self, mut rgb: [f32; 3]) -> [f32; 3] {
+        if let Some(icc_color_space) = &self.content.icc_color_space {
+            rgb = icc_color_space.transfer_characteristics.evaluate(&rgb);
+        } else {
+            // Assume 2.2 gamma, which is the default for most JPEGs and is the best we can do without an ICC profile.
+            rgb[0] = rgb[0].powf(2.2);
+            rgb[1] = rgb[1].powf(2.2);
+            rgb[2] = rgb[2].powf(2.2);
+        }
+        rgb
     }
 }
