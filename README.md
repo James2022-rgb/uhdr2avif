@@ -41,7 +41,7 @@ It mostly does its originally intended job now, and while there are many potenti
 - `--max-display-boost`, defaulting to `10`, specifies maximum available boost supported by a display, as described in [Ultra HDR Image Format v1.1](https://developer.android.com/media/platform/hdr-image-format#definitions). This constant determines the strength of the Ultra HDR _HDR rendition_.
 - `--target-sdr-white-level`, defaulting to `80`, specifies the SDR white level in nits that the RGB value (1, 1, 1) should map to. The _HDR rendition_ value is scaled accordingly.
 
-`--max-display-boost` is required to compute what is called _weight factor_, which determined how much of the gain map to apply based on the target display's HDR capacity.
+`--max-display-boost` is required to compute what is called _weight factor_, which determines how much of the gain map to apply based on the target display's HDR capacity.
 
 Since PQ (Perceptual Quantizer) encodes absolute luminance, we need a way to map the computed _HDR rendition_ value to it.
 `--target-sdr-white-level` is used here to determine the absolute luminance value in nits the RGB value (1, 1, 1) should map to.
@@ -59,9 +59,9 @@ The output of `uhdr2avif -h` is quoted verbatim here:
     --stdout
         Write output to stdout if true. If not specified, the program will write to stdout if `--stdout` is provided
     --max-display-boost <MAX_DISPLAY_BOOST>
-        The maximum available boost supported by a display, at a given point in time. This is a constant value that shouldbe set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition"value [default: 10]
+        The maximum available boost supported by a display, at a given point in time. This is a constant value that shouldbe set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition" value [default: 10]
     --target-sdr-white-level <TARGET_SDR_WHITE_LEVEL>
-        The target SDR white level in nits to scale (1, 1, 1) to. The boosted Ultra HDR "HDR rendition" value is scaled bythis value [default: 80]
+        The target SDR white level in nits to scale (1, 1, 1) to. The boosted Ultra HDR "HDR rendition" value is scaled by this value [default: 80]
 -h, --help
         Print help
 -V, --version

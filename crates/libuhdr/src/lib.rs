@@ -175,7 +175,7 @@ mod tests {
                 std::fs::File::create(&output_file_name).unwrap()
             };
             
-            uhdr_converter.convert_to_avif(&mut out_file)
+            uhdr_converter.convert_to_avif(&mut out_file, WINDOWS_SDR_WHITE_LEVEL)
                 .expect("Failed to convert UHDR JPEG to AVIF");
         }
     }

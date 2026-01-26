@@ -116,9 +116,23 @@ impl UhdrJpeg {
         }
 
         let first_mp_entry = &mpf_info.mp_entries()[0];
-        let offset = first_mp_entry.individual_image_size;
 
-        let gain_map_jpeg_bytes = &original_bytes[offset as usize..original_bytes.len() - 1];
+        // The offset in MPF is relative to the MP Endian field (start of TIFF data in APP2).
+        // Since zune-jpeg doesn't provide the APP2 segment's position in the file,
+        // we scan for the JPEG SOI marker (0xFF 0xD8) starting near the expected position.
+        let search_start = first_mp_entry.individual_image_size as usize;
+        let gain_map_start = original_bytes[search_start..]
+            .windows(2)
+            .position(|w| w == [0xFF, 0xD8])
+            .map(|pos| search_start + pos)
+            .ok_or_else(|| {
+                error!("Could not find gain map JPEG SOI marker");
+                "Could not find gain map JPEG"
+            })
+            .ok()?;
+
+        trace!("Gain map JPEG found at offset {} (searched from {})", gain_map_start, search_start);
+        let gain_map_jpeg_bytes = &original_bytes[gain_map_start..];
         let gain_map_jpeg = UhdrJpeg::new_from_bytes(gain_map_jpeg_bytes)
             .map_err(|e| {
                 error!("Failed to extract gain map JPEG: {}", e);
