@@ -149,10 +149,29 @@ impl ColorGamut {
         }
 
         // Otherwise, read the three primary colorant tags.
+        // These are in D50 PCS and need to be unadapted if a chromatic adaptation tag exists.
 
-        let red_primary = read_CIEXYZ_tag_as_CIExyY(icc_profile, TagSignature::RedColorantTag)?;
-        let green_primary = read_CIEXYZ_tag_as_CIExyY(icc_profile, TagSignature::GreenColorantTag)?;
-        let blue_primary = read_CIEXYZ_tag_as_CIExyY(icc_profile, TagSignature::BlueColorantTag)?;
+        let red_primary_xyz = read_CIEXYZ_tag(icc_profile, TagSignature::RedColorantTag)?;
+        let green_primary_xyz = read_CIEXYZ_tag(icc_profile, TagSignature::GreenColorantTag)?;
+        let blue_primary_xyz = read_CIEXYZ_tag(icc_profile, TagSignature::BlueColorantTag)?;
+
+        let (red_primary, green_primary, blue_primary) = if let Some(from_d50) = &from_d50 {
+            // Unadapt from D50 PCS to the actual device primaries
+            let red_xyz = transform_right(&[red_primary_xyz.X, red_primary_xyz.Y, red_primary_xyz.Z], from_d50);
+            let green_xyz = transform_right(&[green_primary_xyz.X, green_primary_xyz.Y, green_primary_xyz.Z], from_d50);
+            let blue_xyz = transform_right(&[blue_primary_xyz.X, blue_primary_xyz.Y, blue_primary_xyz.Z], from_d50);
+            (
+                lcms2::XYZ2xyY(&CIEXYZ { X: red_xyz[0], Y: red_xyz[1], Z: red_xyz[2] }),
+                lcms2::XYZ2xyY(&CIEXYZ { X: green_xyz[0], Y: green_xyz[1], Z: green_xyz[2] }),
+                lcms2::XYZ2xyY(&CIEXYZ { X: blue_xyz[0], Y: blue_xyz[1], Z: blue_xyz[2] }),
+            )
+        } else {
+            (
+                lcms2::XYZ2xyY(&red_primary_xyz),
+                lcms2::XYZ2xyY(&green_primary_xyz),
+                lcms2::XYZ2xyY(&blue_primary_xyz),
+            )
+        };
 
         Some(Self {
             primaries: ColorPrimaries {
@@ -370,12 +389,6 @@ fn read_mlu_tag(icc_profile: &Profile, sig: TagSignature) -> Option<String> {
         },
         _ => panic!("Expected MLU tag"),
     }
-}
-
-#[allow(non_snake_case)]
-fn read_CIEXYZ_tag_as_CIExyY(icc_profile: &Profile, sig: TagSignature) -> Option<CIExyY> {
-    let ciexyz = read_CIEXYZ_tag(icc_profile, sig)?;
-    Some(lcms2::XYZ2xyY(&ciexyz))
 }
 
 #[allow(non_snake_case)]
