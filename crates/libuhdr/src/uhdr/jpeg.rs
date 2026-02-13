@@ -4,7 +4,7 @@ use zune_jpeg::ImageInfo as JpegImageInfo;
 use zune_jpeg::zune_core::colorspace::ColorSpace as JpegColorSpace;
 
 use crate::colorspace::{IccColorSpace, ColorGamut};
-use crate::mpf::MpfInfo;
+use crate::uhdr::mpf::MpfInfo;
 
 /// Represents a JPEG image, potentially with Ultra HDR metadata and gain map information.
 #[derive(Clone)]

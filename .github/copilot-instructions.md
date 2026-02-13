@@ -38,9 +38,9 @@ cargo test --package libuhdr -- tests::it_works
 
 ### Core Processing Pipeline
 
-1. **JPEG Parsing** (`jpeg.rs`) - Uses `zune-jpeg` to decode JPEG, extract XMP metadata, ICC profile, and MPF (Multi-Picture Format) data
-2. **Gain Map Extraction** (`jpeg.rs:extract_gain_map_jpeg`) - Parses MPF to locate the embedded gain map JPEG within the Ultra HDR file
-3. **Metadata Parsing** (`gainmap.rs`) - Extracts HDR parameters from XMP: gamma, gain_map_min/max, offset_sdr/hdr, hdr_capacity_min/max
+1. **JPEG Parsing** (`uhdr/jpeg.rs`) - Uses `zune-jpeg` to decode JPEG, extract XMP metadata, ICC profile, and MPF (Multi-Picture Format) data
+2. **Gain Map Extraction** (`uhdr/jpeg.rs:extract_gain_map_jpeg`) - Parses MPF to locate the embedded gain map JPEG within the Ultra HDR file
+3. **Metadata Parsing** (`uhdr/gainmap.rs`) - Extracts HDR parameters from XMP: gamma, gain_map_min/max, offset_sdr/hdr, hdr_capacity_min/max
 4. **HDR Boost Computation** (`uhdr.rs:UhdrBoostComputer`) - Applies the Ultra HDR algorithm to compute boosted HDR values from SDR + gain map
 5. **Color Space Conversion** (`colorspace.rs`) - Converts from source gamut (typically sRGB from ICC profile) to BT.2020
 6. **AVIF Encoding** (`outavif.rs`) - Converts linear RGB to PQ-encoded Y'CbCr and writes 10-bit HDR10 AVIF
@@ -48,9 +48,9 @@ cargo test --package libuhdr -- tests::it_works
 ### Key Types
 
 - `UhdrConverter` (`lib.rs`) - Main orchestrator that ties together parsing, boost computation, and output
-- `UhdrJpeg` (`jpeg.rs`) - Represents a decoded JPEG with pixel access and bilinear sampling
+- `UhdrJpeg` (`uhdr/jpeg.rs`) - Represents a decoded JPEG with pixel access and bilinear sampling
 - `UhdrBoostComputer` (`uhdr.rs`) - Precomputes gain map parameters and applies the HDR boost formula
-- `GainMapMetadata` (`gainmap.rs`) - Ultra HDR XMP metadata structure
+- `GainMapMetadata` (`uhdr/gainmap.rs`) - Ultra HDR XMP metadata structure
 - `ColorGamut` (`colorspace.rs`) - Represents color primaries and white point with gamut conversion
 
 ### External Dependencies Note

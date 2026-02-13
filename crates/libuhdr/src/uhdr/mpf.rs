@@ -1,5 +1,5 @@
 
-use crate::tiff;
+use crate::uhdr::tiff;
 
 /// Represents the Multi-Page File (MPF) information extracted from TIFF bytes,
 /// which can be contained in a JPEG file.
