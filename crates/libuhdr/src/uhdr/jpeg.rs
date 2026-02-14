@@ -4,6 +4,7 @@ use zune_jpeg::ImageInfo as JpegImageInfo;
 use zune_jpeg::zune_core::colorspace::ColorSpace as JpegColorSpace;
 
 use crate::colorspace::{IccColorSpace, ColorGamut};
+use crate::pixel::{FloatPixel, sample_bilinear_with};
 use crate::uhdr::mpf::MpfInfo;
 
 /// Represents a JPEG image, potentially with Ultra HDR metadata and gain map information.
@@ -177,58 +178,16 @@ impl UhdrJpeg {
         u: f32,
         v: f32,
     ) -> Option<[f32; 3]> {
-        // U and V are in the range [0, 1]
-        let width = self.jpeg_info.width as f32;
-        let height = self.jpeg_info.height as f32;
-
-        let x = u * width;
-        let y = v * height;
-
-        let base_x = if x.fract() < 0.5 {
-            x.floor() - 1.0
-        }
-        else {
-            x.floor()
-        };
-        let base_y = if y.fract() < 0.5 {
-            y - 1.0
-        }
-        else {
-            y.floor()
-        };
-
-        let base_x = (base_x as usize).clamp(0, self.jpeg_info.width as usize - 1);
-        let base_y = (base_y as usize).clamp(0, self.jpeg_info.height as usize - 1);
-
-        let p00 = self.get_pixel_as_rgb888_unorm_linear(base_x, base_y);
-        let p01 = self.get_pixel_as_rgb888_unorm_linear(base_x, base_y + 1);
-        let p10 = self.get_pixel_as_rgb888_unorm_linear(base_x + 1, base_y);
-        let p11 = self.get_pixel_as_rgb888_unorm_linear(base_x + 1, base_y + 1);
-
-        let p00 = p00.unwrap_or([0.0, 0.0, 0.0]);
-        let p01 = p01.unwrap_or([0.0, 0.0, 0.0]);
-        let p10 = p10.unwrap_or([0.0, 0.0, 0.0]);
-        let p11 = p11.unwrap_or([0.0, 0.0, 0.0]);
-
-        let s = (x - base_x as f32).clamp(0.0, 1.0);
-        let t = (y - base_y as f32).clamp(0.0, 1.0);
-
-        fn lerp(a: f32, b: f32, t: f32) -> f32 {
-            a + (b - a) * t
-        }
-
-        fn bilinear(p00: f32, p10: f32, p01: f32, p11: f32, s: f32, t: f32) -> f32 {
-            lerp(
-                lerp(p00, p10, s),
-                lerp(p01, p11, s),
-                t,
-            )
-        }
-
-        let r = bilinear(p00[0], p10[0], p01[0], p11[0], s, t);
-        let g = bilinear(p00[1], p10[1], p01[1], p11[1], s, t);
-        let b = bilinear(p00[2], p10[2], p01[2], p11[2], s, t);
-        Some([r, g, b])
+        let pixel = sample_bilinear_with(
+            self.jpeg_info.width as usize,
+            self.jpeg_info.height as usize,
+            u, v,
+            |x, y| {
+                let rgb = self.get_pixel_as_rgb888_unorm_linear(x, y).unwrap_or([0.0; 3]);
+                FloatPixel::from(rgb)
+            },
+        );
+        Some(*pixel.rgb())
     }
 }
 

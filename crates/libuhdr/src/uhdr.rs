@@ -2,7 +2,6 @@
 mod gainmap;
 mod jpeg;
 mod mpf;
-mod tiff;
 
 use std::io::{Read, Write};
 
