@@ -37,5 +37,5 @@ jobs:
 
       - name: Build check
         env:
-          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          VCPKG_ROOT: C:\vcpkg
         run: cargo check -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}
