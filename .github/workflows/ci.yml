@@ -42,6 +42,7 @@ jobs:
       - name: Build binary
         env:
           VCPKG_ROOT: C:\vcpkg
+          VCPKGRS_DYNAMIC: "1"
         run: cargo build --release -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}
 
       - name: Rename and prepare binary
