@@ -34,7 +34,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install libheif via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: vcpkg install libheif:x64-windows
+
       - name: Build binary
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
         run: cargo build --release -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}
 
       - name: Rename and prepare binary
