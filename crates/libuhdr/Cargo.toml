@@ -4,10 +4,10 @@ version = "0.1.1"
 edition = "2024"
 
 [features]
-default = ["avif"]
+default = ["avif"] 
 exr = ["dep:exr"]
 avif = ["dep:ravif", "dep:rav1e"]
-heif = ["dep:libheif-rs"]
+heif = ["dep:libheif-rs", "dep:four-cc"]
 
 [dependencies]
 num-traits = "0.2"
@@ -25,4 +25,8 @@ exr = { optional = true, version = "1.73.0" }
 ravif = { optional = true, git = "https://github.com/James2022-rgb/cavif-rs", branch = "feature/encode_raw_plane_10_with_params", default-features = false, features = ["threading"] }
 # ravif = { optional = true, path = "../../../cavif-rs/ravif", default-features = false, features = ["threading"] } # Use this instead when developing locally
 rav1e = { optional = true, version = "0.7.1", default-features = false } # Same version as the one used by `ravif`.
-libheif-rs = { optional = true, git = "https://github.com/cykooz/libheif-rs", features = ["embedded-libheif"] }
+libheif-rs = { optional = true, git = "https://github.com/cykooz/libheif-rs", rev = "a5ed897", default-features = false, features = ["v1_19"] }
+four-cc = { optional = true, version = "0.4.0" }
+
+[dev-dependencies]
+image = "0.25.9"

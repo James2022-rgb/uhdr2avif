@@ -12,12 +12,15 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             ext: .exe
+            cargo_features: "--features heif"
           - target: aarch64-apple-darwin
             os: macos-latest
             ext: ""
+            cargo_features: ""
           - target: x86_64-apple-darwin
             os: macos-latest
             ext: ""
+            cargo_features: ""
 
     name: Build for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -31,8 +34,16 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install libheif via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: vcpkg install libheif:x64-windows
+
       - name: Build binary
-        run: cargo build --release -p uhdr2avif --target ${{ matrix.target }}
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKGRS_DYNAMIC: "1"
+        run: cargo build --release -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}
 
       - name: Rename and prepare binary
         run: |

@@ -1,8 +1,13 @@
 
 pub use uhdr::UhdrConverter;
+#[cfg(feature = "heif")]
+pub use apple_hdr::AppleHdrHeicConverter;
 
 pub mod colorspace;
+pub mod tiff;
 pub mod uhdr;
+#[cfg(feature = "heif")]
+pub mod apple_hdr;
 
 #[cfg(feature = "avif")]
 pub mod outavif;

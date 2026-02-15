@@ -60,6 +60,45 @@ impl ColorGamut {
     const WHITE_POINT_D50: CIExyY = CIExyY { x: 0.3457, y: 0.3585, Y: 1.0000 };
     const WHITE_POINT_D65: CIExyY = CIExyY { x: 0.3127, y: 0.3290, Y: 1.0000 };
 
+    /// Constructs a `ColorGamut` from explicit xy chromaticity coordinates.
+    ///
+    /// The luminance (Y) value of each primary is computed so that
+    /// `(1, 1, 1)` in RGB maps to the given white point in XYZ.
+    pub fn from_xy_primaries(
+        red_x: f64, red_y: f64,
+        green_x: f64, green_y: f64,
+        blue_x: f64, blue_y: f64,
+        white_x: f64, white_y: f64,
+    ) -> Self {
+        // Unscaled chromaticity matrix T (each row normalised to Y=1).
+        let t = [
+            [red_x / red_y,   1.0, (1.0 - red_x   - red_y)   / red_y],
+            [green_x / green_y, 1.0, (1.0 - green_x - green_y) / green_y],
+            [blue_x / blue_y,  1.0, (1.0 - blue_x  - blue_y)  / blue_y],
+        ];
+
+        // White point XYZ (normalised to Y=1).
+        let w_xyz = [
+            white_x / white_y,
+            1.0,
+            (1.0 - white_x - white_y) / white_y,
+        ];
+
+        // Solve [Sr, Sg, Sb] = W * T^-1  — these are the luminance (Y)
+        // scaling factors for each primary.
+        let t_inv = invert_matrix(t).expect("Chromaticity matrix is singular");
+        let s = transform_right(&w_xyz, &t_inv);
+
+        Self {
+            primaries: ColorPrimaries {
+                red:   CIExyY { x: red_x,   y: red_y,   Y: s[0] },
+                green: CIExyY { x: green_x, y: green_y, Y: s[1] },
+                blue:  CIExyY { x: blue_x,  y: blue_y,  Y: s[2] },
+            },
+            white_point: CIExyY { x: white_x, y: white_y, Y: 1.0 },
+        }
+    }
+
     /// [sRGB](https://en.wikipedia.org/wiki/SRGB) color gamut, same color primaries and white point as the ITU-R Recommendation BT.709 or [Rec.709](https://en.wikipedia.org/wiki/Rec._709) standard.
     pub const fn srgb() -> Self {
         Self {
@@ -75,6 +114,19 @@ impl ColorGamut {
                 red: CIExyY { x: 0.7080, y: 0.2920, Y: 0.2627 },
                 green: CIExyY { x: 0.1700, y: 0.7970, Y: 0.6780 },
                 blue: CIExyY { x: 0.1310, y: 0.0460, Y: 0.0593 },
+            },
+            white_point: Self::WHITE_POINT_D65,
+        }
+    }
+
+    /// [Display P3](https://en.wikipedia.org/wiki/DCI-P3#Display_P3) color gamut.
+    /// Same primaries as DCI-P3 but with a D65 white point. Used by Apple devices.
+    pub const fn display_p3() -> Self {
+        Self {
+            primaries: ColorPrimaries {
+                red: CIExyY { x: 0.6800, y: 0.3200, Y: 0.2290 },
+                green: CIExyY { x: 0.2650, y: 0.6900, Y: 0.6917 },
+                blue: CIExyY { x: 0.1500, y: 0.0600, Y: 0.0793 },
             },
             white_point: Self::WHITE_POINT_D65,
         }

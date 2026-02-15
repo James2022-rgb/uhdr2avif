@@ -1,0 +1,42 @@
+name: Build Check
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cargo_features: "--features heif"
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cargo_features: ""
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cargo_features: ""
+
+    name: Check ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install libheif via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: vcpkg install libheif:x64-windows
+
+      - name: Build check
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKGRS_DYNAMIC: "1"
+        run: cargo check -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}

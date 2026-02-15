@@ -149,7 +149,7 @@ impl TiffIfdEntry {
 }
 
 impl TiffHeader {
-    fn new<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+    pub(crate) fn new<R: Read>(reader: &mut R) -> std::io::Result<Self> {
         let byte_order = read_u16(reader, Endianness::LittleEndian)?;
 
         if byte_order != 0x4949 && byte_order != 0x4D4D {
@@ -185,11 +185,11 @@ impl TiffHeader {
 
 impl TiffIfd {
     /// * `reader` - The `Read` from which to read the IFD. Must be positioned at the start of the IFD.
-    fn new<R: Read + Seek>(reader: &mut R, endianness: Endianness, version: u16) -> std::io::Result<Self> {
+    pub(crate) fn new<R: Read + Seek>(reader: &mut R, endianness: Endianness, version: u16) -> std::io::Result<Self> {
         let value_offset_size = match version {
             42 => 4usize, // 32-bit offset
             43 => 8usize, // 64-bit offset
-            _ => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Unsupported TIFF version")),
+            _ => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Unsupported TIFF version: {}", version))),
         };
 
         let entry_count = read_u16(reader, endianness)?;
@@ -205,13 +205,19 @@ impl TiffIfd {
             let count = read_u32(reader, endianness)?;
 
             let field_type = TiffFieldType::from_u16(field_type)
-                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid field type"))?;
+                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Invalid field type: {}", field_type)))?;
 
             let size = field_type.size() * count as usize;
 
             let field_value = if size <= value_offset_size {
-                // The field value is stored directly in the IFD entry
-                TiffFieldValue::from_reader(reader, endianness, field_type, count)?
+                // The field value is stored directly in the IFD entry.
+                let field_value = TiffFieldValue::from_reader(reader, endianness, field_type, count)?;
+                // Skip padding bytes so the reader is aligned to the end of the value/offset field.
+                let padding = value_offset_size - size;
+                if padding > 0 {
+                    reader.seek(std::io::SeekFrom::Current(padding as i64))?;
+                }
+                field_value
             } else {
                 // The field value is stored in a separate location.
                 // We need to seek to that location and read the value from there.
