@@ -3,7 +3,7 @@
 
 # `uhdr2avif`
 
-**CLI tool and core library written in 🦀Rust for [Ultra HDR](https://developer.android.com/media/platform/hdr-image-format) JPEG to AVIF conversion**
+**CLI tool and core library written in 🦀Rust for converting HDR gain map images to HDR10 AVIF**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -23,15 +23,25 @@ CLI tool binary [releases](https://github.com/James2022-rgb/uhdr2avif/releases) 
 
 It mostly does its originally intended job now, and while there are many potentials for optimization, the AV1 encoding in `rav1e` seems to take up the vast majority of the CLI binary's runtime.
 
+## 📥 Supported Input Formats
+
+| Format | Description | Feature flag |
+|--------|-------------|-------------|
+| [Ultra HDR](https://developer.android.com/media/platform/hdr-image-format) JPEG | Google's HDR gain map format embedded in standard JPEG | _(always enabled)_ |
+| [Apple HDR](https://developer.apple.com/documentation/appkit/applying-apple-hdr-effect-to-your-photos) HEIC | Apple's HDR gain map format used by iPhone | `heif` |
+
+The input format is auto-detected from the file extension (`.jpg`/`.jpeg` or `.heic`), or can be explicitly specified with `--format`.
+
 ## 📦 The CLI tool binary
 
-`uhdr2avif` is a command-line tool that processes Ultra HDR JPEGs and converts them to AVIF, preserving HDR (High Dynamic Range) with optional tonemapping controls.
+`uhdr2avif` is a command-line tool that converts HDR gain map images to AVIF, preserving HDR (High Dynamic Range) with optional tonemapping controls.
 
 ### Command line options
 
-#### Input 
+#### Input
 - Accepts a file path via `--input` / `-i`, or raw data via `--stdin`.
 - If `--input` is not provided, the program reads from stdin only if `--stdin` is explicitly set.
+- `--format` / `-f` can be used to explicitly specify the input format (`jpeg` or `heic`). If omitted, the format is detected from the file extension.
 
 #### Output
 - Writes to a file path specified via `--output` / `-o`, or to stdout if `--stdout` is set.
@@ -54,12 +64,14 @@ The output of `uhdr2avif -h` is quoted verbatim here:
         The input file to process. If not specified, the program will read from stdin if `--stdin` is enabled
     --stdin
         Read input from stdin if true
+-f, --format <FORMAT>
+        Input format. If omitted, detected from file extension [possible values: jpeg, heic]
 -o, --output <OUTPUT_FILE_PATH>
         The output file to write to
     --stdout
         Write output to stdout if true. If not specified, the program will write to stdout if `--stdout` is provided
     --max-display-boost <MAX_DISPLAY_BOOST>
-        The maximum available boost supported by a display, at a given point in time. This is a constant value that shouldbe set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition" value [default: 10]
+        The maximum available boost supported by a display, at a given point in time. This is a constant value that should be set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition" value [default: 10]
     --target-sdr-white-level <TARGET_SDR_WHITE_LEVEL>
         The target SDR white level in nits to scale (1, 1, 1) to. The boosted Ultra HDR "HDR rendition" value is scaled by this value [default: 80]
 -h, --help
@@ -67,3 +79,5 @@ The output of `uhdr2avif -h` is quoted verbatim here:
 -V, --version
         Print version
 ```
+
+> **Note:** The `heic` format option is only available when built with the `heif` feature (`cargo build -F heif`).
