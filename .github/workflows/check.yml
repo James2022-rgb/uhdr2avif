@@ -30,5 +30,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install libheif via vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: vcpkg install libheif:x64-windows-static-md
+
       - name: Build check
+        env:
+          VCPKG_ROOT: C:\vcpkg
         run: cargo check -p uhdr2avif --target ${{ matrix.target }} ${{ matrix.cargo_features }}
