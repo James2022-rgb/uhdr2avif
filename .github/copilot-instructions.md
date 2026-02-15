@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A Rust CLI tool and library for converting Ultra HDR JPEGs to HDR10 AVIF. Ultra HDR is Google's format for embedding HDR gain maps in standard JPEG files. This tool extracts the gain map, computes the HDR rendition, and encodes to 10-bit PQ AVIF in BT.2020 color space.
+A Rust CLI tool and library for converting HDR gain map images to HDR10 AVIF. Supports two input formats:
+
+- **Ultra HDR JPEG** - Google's format for embedding HDR gain maps in standard JPEG files
+- **Apple HDR HEIC** - Apple's HDR gain map format used by iPhone (requires `heif` feature)
+
+The tool extracts the gain map, computes the HDR rendition, and encodes to 10-bit PQ AVIF in BT.2020 color space.
 
 ## Language
 
@@ -16,14 +21,17 @@ All code comments MUST be written in English.
 # Build the CLI tool (release)
 cargo build --release -p uhdr2avif
 
-# Build with all features
-cargo build --release
+# Build with HEIC support
+cargo build --release -p uhdr2avif -F heif
 
 # Run tests
 cargo test
 
 # Run a single test
 cargo test --package libuhdr -- tests::it_works
+
+# Run Apple HDR HEIC tests
+cargo test -F avif,heif --package libuhdr --lib -- apple_hdr
 ```
 
 ## Architecture
@@ -31,12 +39,13 @@ cargo test --package libuhdr -- tests::it_works
 ### Workspace Structure
 
 - **`crates/uhdr2avif`** - CLI binary using clap for argument parsing
+  - `heif` feature - Enables Apple HDR HEIC input support (forwards to `libuhdr/heif`)
 - **`crates/libuhdr`** - Core library with optional feature flags:
   - `avif` (default) - AVIF output via ravif/rav1e
   - `exr` - EXR output support
-  - `heif` - HEIF output support
+  - `heif` - Apple HDR HEIC input support via libheif-rs
 
-### Core Processing Pipeline
+### Ultra HDR JPEG Pipeline
 
 1. **JPEG Parsing** (`uhdr/jpeg.rs`) - Uses `zune-jpeg` to decode JPEG, extract XMP metadata, ICC profile, and MPF (Multi-Picture Format) data
 2. **Gain Map Extraction** (`uhdr/jpeg.rs:extract_gain_map_jpeg`) - Parses MPF to locate the embedded gain map JPEG within the Ultra HDR file
@@ -45,14 +54,23 @@ cargo test --package libuhdr -- tests::it_works
 5. **Color Space Conversion** (`colorspace.rs`) - Converts from source gamut (typically sRGB from ICC profile) to BT.2020
 6. **AVIF Encoding** (`outavif.rs`) - Converts linear RGB to PQ-encoded Y'CbCr and writes 10-bit HDR10 AVIF
 
+### Apple HDR HEIC Pipeline (`heif` feature)
+
+1. **HEIC Parsing** (`apple_hdr/heic.rs`) - Uses `libheif-rs` to decode HEIC, extract SDR image (linearized with sRGB EOTF), gain map (Rec.709 EOTF), and color gamut (NCLX/ICC)
+2. **Headroom Extraction** (`apple_hdr/heic.rs`) - Parses Apple MakerNote from EXIF (tags 0x0021/0x0030) via the TIFF IFD parser (`tiff.rs`) to compute HDR headroom
+3. **HDR Boost** (`apple_hdr.rs:AppleHdrHeicConverter`) - Applies `sdr * (1 + (headroom - 1) * gainmap)`, converts gamut to BT.2020, encodes to AVIF
+
 ### Key Types
 
-- `UhdrConverter` (`lib.rs`) - Main orchestrator that ties together parsing, boost computation, and output
+- `UhdrConverter` (`uhdr.rs`) - Ultra HDR JPEG orchestrator: parsing, boost computation, and output
+- `AppleHdrHeicConverter` (`apple_hdr.rs`) - Apple HDR HEIC orchestrator: parsing, boost, and output (`heif` feature)
 - `UhdrJpeg` (`uhdr/jpeg.rs`) - Represents a decoded JPEG with pixel access and bilinear sampling
 - `UhdrBoostComputer` (`uhdr.rs`) - Precomputes gain map parameters and applies the HDR boost formula
 - `GainMapMetadata` (`uhdr/gainmap.rs`) - Ultra HDR XMP metadata structure
+- `Heic` (`apple_hdr/heic.rs`) - Parsed Apple HDR HEIC: SDR image, gain map, headroom, color gamut
 - `ColorGamut` (`colorspace.rs`) - Represents color primaries and white point with gamut conversion
+- `FloatImageContent` / `FloatPixel` (`pixel.rs`) - Linear float pixel storage with bilinear sampling
 
 ### External Dependencies Note
 
-The project uses a forked version of `ravif` with a custom `encode_raw_plane_10_with_params` method for HDR10 encoding with explicit color parameters. The `zune-jpeg` dependency requires a specific git revision that supports `multi_picture_information` for MPF parsing.
+The project uses a forked version of `ravif` with a custom `encode_raw_plane_10_with_params` method for HDR10 encoding with explicit color parameters. The `zune-jpeg` dependency requires a specific git revision that supports `multi_picture_information` for MPF parsing. The `libheif-rs` dependency uses a specific git revision for HEIC decoding.
