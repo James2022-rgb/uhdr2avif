@@ -73,6 +73,7 @@ impl UhdrConverter {
         &self,
         writer: &mut W,
         target_sdr_white_level: f32,
+        preserve_exif: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         const DST_COLOR_GAMUT: ColorGamut = ColorGamut::bt2020();
 
@@ -114,11 +115,25 @@ impl UhdrConverter {
             }
         }
 
+        let exif = if preserve_exif {
+            self.uhdr_jpeg.exif_bytes().map(|tiff_bytes| {
+                let mut tiff = tiff_bytes.to_vec();
+                crate::tiff::strip_ifd1(&mut tiff);
+                let mut block = Vec::with_capacity(4 + tiff.len());
+                block.extend_from_slice(&0u32.to_be_bytes());
+                block.extend_from_slice(&tiff);
+                block
+            })
+        } else {
+            None
+        };
+
         crate::outavif::write_hdr10_linear_pixels_to_avif(
             writer,
             width as usize,
             height as usize,
             &linear_pixels,
+            exif.as_deref(),
         ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
 
         Ok(())

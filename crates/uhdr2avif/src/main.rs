@@ -58,6 +58,9 @@ struct Args {
     /// The boosted Ultra HDR "HDR rendition" value is scaled by this value.
     #[arg(long="target-sdr-white-level", default_value_t = DEFAULT_TARGET_SDR_WHITE_LEVEL)]
     target_sdr_white_level: f32,
+    /// Do not preserve EXIF metadata from the input in the output AVIF.
+    #[arg(long = "no-preserve-exif", default_value_t = false)]
+    no_preserve_exif: bool,
 }
 
 /// Detect the input format from the file extension.
@@ -120,13 +123,14 @@ fn main() -> Result<(), String> {
     };
 
     let target_sdr_white_level = args.target_sdr_white_level;
+    let preserve_exif = !args.no_preserve_exif;
 
     match input_format {
         InputFormat::Jpeg => {
             let uhdr_converter = UhdrConverter::new(&mut reader, args.max_display_boost)
                 .map_err(|e| format!("Failed to create UHDR converter: {}", e))?;
 
-            uhdr_converter.convert_to_avif(&mut writer, target_sdr_white_level)
+            uhdr_converter.convert_to_avif(&mut writer, target_sdr_white_level, preserve_exif)
                 .map_err(|e| format!("Failed to convert UHDR JPEG to AVIF: {}", e))?;
         }
         #[cfg(feature = "heif")]
@@ -138,7 +142,7 @@ fn main() -> Result<(), String> {
             let converter = AppleHdrHeicConverter::new(&bytes)
                 .map_err(|e| format!("Failed to create Apple HDR HEIC converter: {}", e))?;
 
-            converter.convert_to_avif(&mut writer, target_sdr_white_level)
+            converter.convert_to_avif(&mut writer, target_sdr_white_level, preserve_exif)
                 .map_err(|e| format!("Failed to convert Apple HDR HEIC to AVIF: {}", e))?;
         }
     }

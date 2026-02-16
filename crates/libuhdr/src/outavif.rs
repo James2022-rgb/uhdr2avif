@@ -2,10 +2,7 @@
 
 use std::io::Write;
 
-use ravif::*;
-use rav1e::color::ColorPrimaries as Rav1eColorPrimaries;
-use rav1e::color::TransferCharacteristics as Rav1eTransferCharacteristics;
-use rav1e::color::PixelRange;
+use rav1e::prelude::*;
 
 use crate::pixel::FloatImageContent;
 
@@ -14,6 +11,7 @@ pub fn write_hdr10_linear_pixels_to_avif<W: Write>(
     width: usize,
     height: usize,
     content: &FloatImageContent,
+    exif: Option<&[u8]>,
 ) -> std::io::Result<()> {
     let mut ycbcr_pixels: Vec<[u16; 3]> = Vec::with_capacity(width * height);
     for y in 0..height {
@@ -46,7 +44,7 @@ pub fn write_hdr10_linear_pixels_to_avif<W: Write>(
         }
     }
 
-    write_hdr10_ycbcr_pixels_to_avif(writer, width, height, &ycbcr_pixels)
+    write_hdr10_ycbcr_pixels_to_avif(writer, width, height, &ycbcr_pixels, exif)
 }
 
 /// - `pixels`: A slice of HDR10 pixels, each represented as an array of 3 `u16`` values (Y', Cb, Cr).
@@ -56,33 +54,98 @@ pub fn write_hdr10_ycbcr_pixels_to_avif<W: Write>(
     width: usize,
     height: usize,
     ycbcr_pixels: &[[u16; 3]],
+    exif: Option<&[u8]>,
 ) -> std::io::Result<()> {
-    const TRANSFER_CHARACTERISTICS: Rav1eTransferCharacteristics = Rav1eTransferCharacteristics::SMPTE2084;
-    const COLOR_PRIMARIES: Rav1eColorPrimaries = Rav1eColorPrimaries::BT2020;
-    const MATRIX_COEFFICIENTS: MatrixCoefficients = MatrixCoefficients::BT2020NCL;
+    let av1_data = encode_av1_still_10bit(width, height, ycbcr_pixels)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
-    let res = Encoder::new()
-        .with_quality(100.0)
-        .with_speed(4)
-        .encode_raw_plane_10_with_params(
-            width, height,
-            ycbcr_pixels.iter().cloned(),
-            None::<[_; 0]>,
-            PixelRange::Full,
-            TRANSFER_CHARACTERISTICS,
-            COLOR_PRIMARIES,
-            MATRIX_COEFFICIENTS
-        )
-        .unwrap()
-        ;
+    let mut aviffy = avif_serialize::Aviffy::new();
+    aviffy.transfer_characteristics(avif_serialize::constants::TransferCharacteristics::Smpte2084);
+    aviffy.color_primaries(avif_serialize::constants::ColorPrimaries::Bt2020);
+    aviffy.matrix_coefficients(avif_serialize::constants::MatrixCoefficients::Bt2020Ncl);
+    if let Some(exif) = exif {
+        aviffy.set_exif(exif.to_vec());
+    }
+    aviffy.write(writer, &av1_data, None, width as u32, height as u32, 10)?;
 
-    writer.write_all(&res.avif_file)?;
     Ok(())
+}
+
+fn encode_av1_still_10bit(
+    width: usize,
+    height: usize,
+    ycbcr_pixels: &[[u16; 3]],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let cfg = Config::new()
+        .with_encoder_config(EncoderConfig {
+            width,
+            height,
+            bit_depth: 10,
+            chroma_sampling: ChromaSampling::Cs444,
+            chroma_sample_position: ChromaSamplePosition::Unknown,
+            pixel_range: PixelRange::Full,
+            color_description: Some(ColorDescription {
+                color_primaries: ColorPrimaries::BT2020,
+                transfer_characteristics: TransferCharacteristics::SMPTE2084,
+                matrix_coefficients: MatrixCoefficients::BT2020NCL,
+            }),
+            still_picture: true,
+            quantizer: 0,
+            min_quantizer: 0,
+            tune: Tune::Psychovisual,
+            time_base: Rational { num: 1, den: 1 },
+            sample_aspect_ratio: Rational { num: 1, den: 1 },
+            speed_settings: SpeedSettings::from_preset(4),
+            ..Default::default()
+        });
+
+    let mut ctx: Context<u16> = cfg.new_context()?;
+    let mut frame = ctx.new_frame();
+
+    // Populate frame planes (Y, Cb, Cr) from interleaved YCbCr pixels.
+    {
+        let mut planes = frame.planes.iter_mut();
+        let mut y_plane = planes.next().unwrap().mut_slice(Default::default());
+        let mut u_plane = planes.next().unwrap().mut_slice(Default::default());
+        let mut v_plane = planes.next().unwrap().mut_slice(Default::default());
+
+        let mut pixel_iter = ycbcr_pixels.iter();
+        for ((y_row, u_row), v_row) in y_plane.rows_iter_mut()
+            .zip(u_plane.rows_iter_mut())
+            .zip(v_plane.rows_iter_mut())
+            .take(height)
+        {
+            for ((y, u), v) in y_row[..width].iter_mut()
+                .zip(&mut u_row[..width])
+                .zip(&mut v_row[..width])
+            {
+                let px = pixel_iter.next().expect("not enough pixels");
+                *y = px[0];
+                *u = px[1];
+                *v = px[2];
+            }
+        }
+    }
+
+    ctx.send_frame(frame)?;
+    ctx.flush();
+
+    let mut av1_data = Vec::new();
+    loop {
+        match ctx.receive_packet() {
+            Ok(packet) => {
+                av1_data.extend_from_slice(&packet.data);
+            }
+            Err(EncoderStatus::Encoded) | Err(EncoderStatus::LimitReached) => break,
+            Err(e) => return Err(Box::new(e)),
+        }
+    }
+    Ok(av1_data)
 }
 
 /// SMPTE ST.2084 PQ (Perceptual Quantizer) EOTF^-1:
 /// PQ is actually defined by the EOTF. This is its inverse, divided by 10,000.
-/// 
+///
 /// Also in [_Rec. ITU-R BT.2100-3_](https://www.itu.int/rec/R-REC-BT.2100-3-202502-I/en).
 ///
 /// - `color`: Normalized color [0, 1] to map non-linearly to [0, 1].

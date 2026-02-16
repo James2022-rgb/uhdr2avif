@@ -12,6 +12,7 @@ use crate::uhdr::mpf::MpfInfo;
 pub struct UhdrJpeg {
     jpeg_info: JpegImageInfo,
     xmp_bytes: Option<Vec<u8>>,
+    exif_bytes: Option<Vec<u8>>,
     content: JpegImageContent,
 }
 
@@ -38,6 +39,7 @@ impl UhdrJpeg {
         let jpeg_info = jpeg_decoder.info().unwrap();
 
         let xmp_bytes = jpeg_decoder.xmp().cloned();
+        let exif_bytes = jpeg_decoder.exif().cloned();
 
         let jpeg_output_color_space = jpeg_decoder.output_colorspace()
             .ok_or_else(|| "Failed to get JPEG output ColorSpace")
@@ -69,6 +71,7 @@ impl UhdrJpeg {
         Ok(Self {
             jpeg_info,
             xmp_bytes,
+            exif_bytes,
             content: JpegImageContent {
                 icc_color_space,
                 jpeg_color_space: jpeg_output_color_space,
@@ -83,6 +86,11 @@ impl UhdrJpeg {
 
     pub fn xmp_bytes(&self) -> Option<&[u8]> {
         self.xmp_bytes.as_deref()
+    }
+
+    /// Returns the raw EXIF TIFF data (starting at "II"/"MM" byte order marker).
+    pub fn exif_bytes(&self) -> Option<&[u8]> {
+        self.exif_bytes.as_deref()
     }
 
     pub fn icc_color_space(&self) -> Option<&IccColorSpace> {

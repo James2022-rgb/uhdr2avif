@@ -19,6 +19,7 @@ impl AppleHdrHeicConverter {
         &self,
         writer: &mut W,
         target_sdr_white_level: f32,
+        preserve_exif: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
         use crate::colorspace::ColorGamut;
         use crate::pixel::{FloatPixel, FloatImageContent};
@@ -65,11 +66,27 @@ impl AppleHdrHeicConverter {
             }
         }
 
+        let exif = if preserve_exif {
+            self.heic.exif_data_block().map(|raw| {
+                let mut block = raw.to_vec();
+                // ExifDataBlock: [4-byte offset][TIFF data]
+                // Apply strip_ifd1 to the TIFF portion.
+                if block.len() > 4 {
+                    let offset = u32::from_be_bytes(block[0..4].try_into().unwrap()) as usize;
+                    crate::tiff::strip_ifd1(&mut block[4 + offset..]);
+                }
+                block
+            })
+        } else {
+            None
+        };
+
         crate::outavif::write_hdr10_linear_pixels_to_avif(
             writer,
             width,
             height,
             &linear_pixels,
+            exif.as_deref(),
         ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
 
         Ok(())
@@ -114,7 +131,7 @@ mod tests {
             let output_file_name = format!("{}.avif", file_path.file_stem().unwrap().to_str().unwrap());
             let mut out_file = std::fs::File::create(&output_file_name).unwrap();
 
-            converter.convert_to_avif(&mut out_file, TARGET_SDR_WHITE_LEVEL)
+            converter.convert_to_avif(&mut out_file, TARGET_SDR_WHITE_LEVEL, true)
                 .expect("Failed to convert HEIC to AVIF");
 
             println!("Written: {}", output_file_name);

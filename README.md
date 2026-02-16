@@ -56,28 +56,38 @@ The input format is auto-detected from the file extension (`.jpg`/`.jpeg` or `.h
 Since PQ (Perceptual Quantizer) encodes absolute luminance, we need a way to map the computed _HDR rendition_ value to it.
 `--target-sdr-white-level` is used here to determine the absolute luminance value in nits the RGB value (1, 1, 1) should map to.
 
+#### EXIF metadata
+By default, EXIF metadata from the input file is preserved in the output AVIF. The thumbnail IFD (IFD1) is stripped to avoid including stale SDR thumbnail data.
+
+Use `--no-preserve-exif` to omit all EXIF metadata from the output.
+
 #### The help `-h, --help` option
 
 The output of `uhdr2avif -h` is quoted verbatim here:
-```bash
--i, --input <INPUT_FILE_PATH>
-        The input file to process. If not specified, the program will read from stdin if `--stdin` is enabled
-    --stdin
-        Read input from stdin if true
--f, --format <FORMAT>
-        Input format. If omitted, detected from file extension [possible values: jpeg, heic]
--o, --output <OUTPUT_FILE_PATH>
-        The output file to write to
-    --stdout
-        Write output to stdout if true. If not specified, the program will write to stdout if `--stdout` is provided
-    --max-display-boost <MAX_DISPLAY_BOOST>
-        The maximum available boost supported by a display, at a given point in time. This is a constant value that should be set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition" value [default: 10]
-    --target-sdr-white-level <TARGET_SDR_WHITE_LEVEL>
-        The target SDR white level in nits to scale (1, 1, 1) to. The boosted Ultra HDR "HDR rendition" value is scaled by this value [default: 80]
--h, --help
-        Print help
--V, --version
-        Print version
+```
+Usage: uhdr2avif [OPTIONS]
+
+Options:
+  -i, --input <INPUT_FILE_PATH>
+          The input file to process. If not specified, the program will read from stdin if `--stdin` is enabled
+      --stdin
+          Read input from stdin if true
+  -f, --format <FORMAT>
+          Input format. If omitted, detected from file extension [possible values: jpeg, heic]
+  -o, --output <OUTPUT_FILE_PATH>
+          The output file to write to
+      --stdout
+          Write output to stdout if true. If not specified, the program will write to stdout if `--stdout` is provided
+      --max-display-boost <MAX_DISPLAY_BOOST>
+          The maximum available boost supported by a display, at a given point in time. This is a constant value that should be set based on the display's capabilities. This value is used to compute the boosted Ultra HDR "HDR rendition" value [default: 10]
+      --target-sdr-white-level <TARGET_SDR_WHITE_LEVEL>
+          The target SDR white level in nits to scale (1, 1, 1) to. The boosted Ultra HDR "HDR rendition" value is scaled by this value [default: 80]
+      --no-preserve-exif
+          Do not preserve EXIF metadata from the input in the output AVIF
+  -h, --help
+          Print help (see more with '--help')
+  -V, --version
+          Print version
 ```
 
 > **Note:** The `heic` format option is only available when built with the `heif` feature (`cargo build -F heif`).
