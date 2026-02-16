@@ -19,6 +19,7 @@ pub struct Heic {
     hdr_metadata: AppleHdrMetadata,
     #[debug(skip)] gainmap: FloatImageContent,
     src_color_gamut: ColorGamut,
+    exif_data_block: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -78,15 +79,18 @@ impl Heic {
             debug!("Found HDRGainMapVersion in XMP metadata: {}", version_str);
         }
 
-        let hdr_metadata = {
+        let (hdr_metadata, exif_data_block) = {
             // Extract MakerNote from primary image's EXIF metadata.
+            let all_meta = handle.all_metadata();
+
+            let exif_meta = all_meta.iter()
+                .find(|m| m.item_type == FourCC(*b"Exif"))
+                .ok_or_else(|| "No EXIF metadata found on primary image".to_string())?;
+
+            // Preserve the raw ExifDataBlock (4-byte prefix + TIFF data) for passthrough.
+            let exif_data_block = exif_meta.raw_data.clone();
+
             let (maker33, maker48) = {
-                let all_meta = handle.all_metadata();
-
-                let exif_meta = all_meta.iter()
-                    .find(|m| m.item_type == FourCC(*b"Exif"))
-                    .ok_or_else(|| "No EXIF metadata found on primary image".to_string())?;
-
                 let exif_bytes = &exif_meta.raw_data;
 
                 // HEIF EXIF block has a 4-byte big-endian prefix: offset from byte 4 to the TIFF header.
@@ -144,9 +148,11 @@ impl Heic {
                 maker33, maker48, stops, headroom
             );
 
-            AppleHdrMetadata {
+            let hdr_metadata = AppleHdrMetadata {
                 headroom,
-            }
+            };
+
+            (hdr_metadata, Some(exif_data_block))
         };
 
         let lib_heif = LibHeif::new();
@@ -239,6 +245,7 @@ impl Heic {
             hdr_metadata,
             gainmap,
             src_color_gamut,
+            exif_data_block,
         })
     }
 
@@ -256,6 +263,11 @@ impl Heic {
 
     pub fn src_color_gamut(&self) -> &ColorGamut {
         &self.src_color_gamut
+    }
+
+    /// Returns the raw EXIF ExifDataBlock bytes (4-byte offset prefix + TIFF data).
+    pub fn exif_data_block(&self) -> Option<&[u8]> {
+        self.exif_data_block.as_deref()
     }
 }
 

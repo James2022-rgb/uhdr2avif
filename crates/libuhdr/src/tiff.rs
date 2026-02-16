@@ -434,3 +434,34 @@ fn read_f64<R: Read>(reader: &mut R, endianness: Endianness) -> std::io::Result<
         Endianness::BigEndian => Ok(f64::from_be_bytes(buffer)),
     }
 }
+
+/// Strip IFD1 (thumbnail) from raw TIFF/EXIF bytes by zeroing IFD0's next-IFD offset.
+/// This preserves all IFD0/Exif Sub-IFD/GPS data and MakerNote offsets intact.
+pub fn strip_ifd1(tiff_bytes: &mut [u8]) {
+    if tiff_bytes.len() < 8 {
+        return;
+    }
+    let is_le = &tiff_bytes[0..2] == b"II";
+
+    let ifd0_offset = if is_le {
+        u32::from_le_bytes(tiff_bytes[4..8].try_into().unwrap())
+    } else {
+        u32::from_be_bytes(tiff_bytes[4..8].try_into().unwrap())
+    } as usize;
+
+    if ifd0_offset + 2 > tiff_bytes.len() {
+        return;
+    }
+    let entry_count = if is_le {
+        u16::from_le_bytes(tiff_bytes[ifd0_offset..ifd0_offset + 2].try_into().unwrap())
+    } else {
+        u16::from_be_bytes(tiff_bytes[ifd0_offset..ifd0_offset + 2].try_into().unwrap())
+    } as usize;
+
+    let next_ifd_pos = ifd0_offset + 2 + 12 * entry_count;
+    if next_ifd_pos + 4 > tiff_bytes.len() {
+        return;
+    }
+    // Zero out the next-IFD offset so IFD1 (thumbnail) is no longer reachable.
+    tiff_bytes[next_ifd_pos..next_ifd_pos + 4].fill(0);
+}
