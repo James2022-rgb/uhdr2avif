@@ -14,13 +14,8 @@ impl AppleHdrHeicConverter {
         Ok(Self { heic })
     }
 
-    #[cfg(feature = "avif")]
-    pub fn convert_to_avif<W: std::io::Write>(
-        &self,
-        writer: &mut W,
-        target_sdr_white_level: f32,
-        preserve_exif: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Compute BT.2020 linear nits pixels from the Apple HDR HEIC.
+    fn compute_hdr_linear_pixels(&self, target_sdr_white_level: f32) -> (usize, usize, crate::pixel::FloatImageContent) {
         use crate::colorspace::ColorGamut;
         use crate::pixel::{FloatPixel, FloatImageContent};
 
@@ -66,6 +61,18 @@ impl AppleHdrHeicConverter {
             }
         }
 
+        (width, height, linear_pixels)
+    }
+
+    #[cfg(feature = "avif")]
+    pub fn convert_to_avif<W: std::io::Write>(
+        &self,
+        writer: &mut W,
+        target_sdr_white_level: f32,
+        preserve_exif: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (width, height, linear_pixels) = self.compute_hdr_linear_pixels(target_sdr_white_level);
+
         let exif = if preserve_exif {
             self.heic.exif_data_block().map(|raw| {
                 let mut block = raw.to_vec();
@@ -88,6 +95,24 @@ impl AppleHdrHeicConverter {
             &linear_pixels,
             exif.as_deref(),
         ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "exr")]
+    pub fn convert_to_exr<W: std::io::Write + std::io::Seek>(
+        &self,
+        writer: W,
+        target_sdr_white_level: f32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (width, height, linear_pixels) = self.compute_hdr_linear_pixels(target_sdr_white_level);
+
+        crate::outexr::write_hdr10_linear_pixels_to_exr(
+            writer,
+            width,
+            height,
+            &linear_pixels,
+        ).map_err(|e| format!("Failed to write EXR: {}", e))?;
 
         Ok(())
     }

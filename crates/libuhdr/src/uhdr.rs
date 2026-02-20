@@ -68,13 +68,8 @@ impl UhdrConverter {
         })
     }
 
-    #[cfg(feature = "avif")]
-    pub fn convert_to_avif<W: Write>(
-        &self,
-        writer: &mut W,
-        target_sdr_white_level: f32,
-        preserve_exif: bool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    /// Compute BT.2020 linear nits pixels from the Ultra HDR JPEG.
+    fn compute_hdr_linear_pixels(&self, target_sdr_white_level: f32) -> FloatImageContent {
         const DST_COLOR_GAMUT: ColorGamut = ColorGamut::bt2020();
 
         let (width, height) = self.uhdr_jpeg.extent();
@@ -115,6 +110,19 @@ impl UhdrConverter {
             }
         }
 
+        linear_pixels
+    }
+
+    #[cfg(feature = "avif")]
+    pub fn convert_to_avif<W: Write>(
+        &self,
+        writer: &mut W,
+        target_sdr_white_level: f32,
+        preserve_exif: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (width, height) = self.uhdr_jpeg.extent();
+        let linear_pixels = self.compute_hdr_linear_pixels(target_sdr_white_level);
+
         let exif = if preserve_exif {
             self.uhdr_jpeg.exif_bytes().map(|tiff_bytes| {
                 let mut tiff = tiff_bytes.to_vec();
@@ -135,6 +143,25 @@ impl UhdrConverter {
             &linear_pixels,
             exif.as_deref(),
         ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "exr")]
+    pub fn convert_to_exr<W: Write + std::io::Seek>(
+        &self,
+        writer: W,
+        target_sdr_white_level: f32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (width, height) = self.uhdr_jpeg.extent();
+        let linear_pixels = self.compute_hdr_linear_pixels(target_sdr_white_level);
+
+        crate::outexr::write_hdr10_linear_pixels_to_exr(
+            writer,
+            width as usize,
+            height as usize,
+            &linear_pixels,
+        ).map_err(|e| format!("Failed to write EXR: {}", e))?;
 
         Ok(())
     }
