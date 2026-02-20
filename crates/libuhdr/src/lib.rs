@@ -13,7 +13,7 @@ pub mod apple_hdr;
 pub mod outavif;
 
 #[cfg(feature = "exr")]
-mod outexr;
+pub mod outexr;
 #[cfg(feature = "heif")]
 mod outheif;
 mod pixel;

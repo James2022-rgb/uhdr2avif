@@ -4,7 +4,8 @@ version = "0.3.0"
 edition = "2024"
 
 [features]
-default = []
+default = ["exr"]
+exr = ["libuhdr/exr"]
 heif = ["libuhdr/heif"]
 
 [dependencies]
