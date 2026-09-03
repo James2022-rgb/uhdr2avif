@@ -1,14 +1,14 @@
-
 mod gainmap;
 mod jpeg;
 mod mpf;
 
 use std::io::{Read, Write};
 
+use indicatif::{ProgressBar, ProgressStyle};
 use log::warn;
 
 use crate::colorspace::ColorGamut;
-use crate::pixel::{FloatPixel, FloatImageContent};
+use crate::pixel::{FloatImageContent, FloatPixel};
 use gainmap::GainMapMetadata;
 use jpeg::UhdrJpeg;
 
@@ -43,22 +43,26 @@ impl UhdrConverter {
         let uhdr_jpeg = UhdrJpeg::new_from_bytes(&jpeg_bytes)
             .map_err(|e| format!("Failed to parse JPEG: {}", e))?;
 
-        let gain_map_jpeg = uhdr_jpeg.extract_gain_map_jpeg(&jpeg_bytes)
+        let gain_map_jpeg = uhdr_jpeg
+            .extract_gain_map_jpeg(&jpeg_bytes)
             .ok_or_else(|| "Failed to extract gain map JPEG".to_string())?;
-        let gain_map_jpeg_xmp_bytes = gain_map_jpeg.xmp_bytes()
+        let gain_map_jpeg_xmp_bytes = gain_map_jpeg
+            .xmp_bytes()
             .ok_or_else(|| "Gain Map JPEG does not contain XMP metadata".to_string())?;
         let gain_map_metadata = GainMapMetadata::new_from_xmp_bytes(&gain_map_jpeg_xmp_bytes)
             .ok_or_else(|| "Failed to parse gain map metadata from XMP".to_string())?;
 
-        let src_color_gamut = uhdr_jpeg.icc_color_space()
+        let src_color_gamut = uhdr_jpeg
+            .icc_color_space()
             .as_ref()
             .map(|icc| icc.color_gamut)
             .unwrap_or_else(|| {
                 warn!("No ICC profile found, using default sRGB color gamut");
                 ColorGamut::srgb()
             });
-        
-        let uhdr_boost_computer = UhdrBoostComputer::new(&gain_map_metadata, max_display_boost.log2());
+
+        let uhdr_boost_computer =
+            UhdrBoostComputer::new(&gain_map_metadata, max_display_boost.log2());
 
         Ok(Self {
             uhdr_jpeg,
@@ -75,6 +79,13 @@ impl UhdrConverter {
         let (width, height) = self.uhdr_jpeg.extent();
 
         let mut linear_pixels = FloatImageContent::with_extent(width, height);
+        let progress = ProgressBar::new(height as u64);
+        progress.set_style(
+            ProgressStyle::with_template("{msg} [{bar:40.cyan/blue}] {pos}/{len} rows ({eta})")
+                .expect("valid progress bar template")
+                .progress_chars("##-"),
+        );
+        progress.set_message("Generating HDR pixels");
         for y in 0..height {
             for x in 0..width {
                 // RGB value after EOTF.
@@ -94,21 +105,30 @@ impl UhdrConverter {
                         (u, v)
                     };
 
-                    self.gain_map_jpeg.sample_bilinear(u, v)
+                    self.gain_map_jpeg
+                        .sample_bilinear(u, v)
                         .unwrap_or_else(|| panic!("Failed to sample gain map at ({}, {})", u, v))
                         .into()
                 };
 
-                let boosted = self.uhdr_boost_computer.compute_boosted(in_rgb, gain_map_rgb);
+                let boosted = self
+                    .uhdr_boost_computer
+                    .compute_boosted(in_rgb, gain_map_rgb);
 
                 // Map 1 to `target_sdr_white_level` nits.
                 let scaled_boosted = boosted * target_sdr_white_level;
 
-                let [r, g , b] = ColorGamut::convert(scaled_boosted.rgb(), &self.src_color_gamut, &DST_COLOR_GAMUT);
+                let [r, g, b] = ColorGamut::convert(
+                    scaled_boosted.rgb(),
+                    &self.src_color_gamut,
+                    &DST_COLOR_GAMUT,
+                );
 
                 linear_pixels.set_at(x, y, FloatPixel::from([r, g, b]));
             }
+            progress.inc(1);
         }
+        progress.finish_with_message("HDR pixels generated");
 
         linear_pixels
     }
@@ -142,7 +162,8 @@ impl UhdrConverter {
             height as usize,
             &linear_pixels,
             exif.as_deref(),
-        ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to write AVIF: {}", e))?;
 
         Ok(())
     }
@@ -161,17 +182,15 @@ impl UhdrConverter {
             width as usize,
             height as usize,
             &linear_pixels,
-        ).map_err(|e| format!("Failed to write EXR: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to write EXR: {}", e))?;
 
         Ok(())
     }
 }
 
 impl UhdrBoostComputer {
-    pub fn new(
-        gain_map_metadata: &GainMapMetadata,
-        log2_max_display_boost: f32,
-    ) -> Self {
+    pub fn new(gain_map_metadata: &GainMapMetadata, log2_max_display_boost: f32) -> Self {
         let gamma: FloatPixel = gain_map_metadata.gamma.into();
         let inv_gamma = gamma.rcp();
 
@@ -187,14 +206,11 @@ impl UhdrBoostComputer {
         }
     }
 
-    pub fn compute_boosted(
-        &self,
-        sdr: FloatPixel,
-        recovery: FloatPixel,
-    ) -> FloatPixel {
+    pub fn compute_boosted(&self, sdr: FloatPixel, recovery: FloatPixel) -> FloatPixel {
         let log_recovery = FloatPixel::powf(&recovery, &self.inv_gamma);
 
-        let log_boost = self.gain_map_min * (FloatPixel::one() - log_recovery) + self.gain_map_max * log_recovery;
+        let log_boost = self.gain_map_min * (FloatPixel::one() - log_recovery)
+            + self.gain_map_max * log_recovery;
         let boost = (log_boost * self.weight_factor).exp2();
 
         let boosted = (sdr + self.offset_sdr) * boost - self.offset_hdr;
