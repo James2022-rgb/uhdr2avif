@@ -1,13 +1,12 @@
-
-pub use uhdr::UhdrConverter;
 #[cfg(feature = "heif")]
 pub use apple_hdr::AppleHdrHeicConverter;
+pub use uhdr::UhdrConverter;
 
+#[cfg(feature = "heif")]
+pub mod apple_hdr;
 pub mod colorspace;
 pub mod tiff;
 pub mod uhdr;
-#[cfg(feature = "heif")]
-pub mod apple_hdr;
 
 #[cfg(feature = "avif")]
 pub mod outavif;
@@ -28,7 +27,7 @@ mod tests {
         const WINDOWS_SDR_WHITE_LEVEL: f32 = 80.0f32;
 
         // FIXME: The maximum brightness of the display in nits.
-        const ASSUMED_DISPLAY_MAX_BRIGHTNESS :f32 = 930.0f32;
+        const ASSUMED_DISPLAY_MAX_BRIGHTNESS: f32 = 930.0f32;
 
         // FIXME: The maximum available boost supported by a display, at a given point in time.
         const MAX_DISPLAY_BOOST: f32 = ASSUMED_DISPLAY_MAX_BRIGHTNESS / WINDOWS_SDR_WHITE_LEVEL;
@@ -41,7 +40,11 @@ mod tests {
             .unwrap()
             .filter_map(|entry| {
                 let entry = entry.unwrap();
-                if entry.path().extension().map_or(false, |ext| ext == "jpg" || ext == "jpeg") {
+                if entry
+                    .path()
+                    .extension()
+                    .map_or(false, |ext| ext == "jpg" || ext == "jpeg")
+                {
                     Some(entry.path())
                 } else {
                     None
@@ -63,8 +66,9 @@ mod tests {
 
                 std::fs::File::create(&output_file_name).unwrap()
             };
-            
-            uhdr_converter.convert_to_avif(&mut out_file, WINDOWS_SDR_WHITE_LEVEL, true)
+
+            uhdr_converter
+                .convert_to_avif(&mut out_file, WINDOWS_SDR_WHITE_LEVEL, true)
                 .expect("Failed to convert UHDR JPEG to AVIF");
         }
     }

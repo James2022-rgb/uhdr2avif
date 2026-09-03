@@ -1,9 +1,8 @@
-
-use log::{trace, warn, error};
+use log::{error, trace, warn};
 use zune_jpeg::ImageInfo as JpegImageInfo;
 use zune_jpeg::zune_core::colorspace::ColorSpace as JpegColorSpace;
 
-use crate::colorspace::{IccColorSpace, ColorGamut};
+use crate::colorspace::{ColorGamut, IccColorSpace};
 use crate::pixel::{FloatPixel, sample_bilinear_with};
 use crate::uhdr::mpf::MpfInfo;
 
@@ -32,40 +31,42 @@ impl UhdrJpeg {
         use zune_jpeg::zune_core::bytestream::ZCursor;
 
         let mut jpeg_decoder = JpegDecoder::new(ZCursor::new(jpeg_bytes));
-        jpeg_decoder.decode_headers()
-            .map_err(|e| format!("Failed to decode JPEG headers: {}", e))
-            ?;
+        jpeg_decoder
+            .decode_headers()
+            .map_err(|e| format!("Failed to decode JPEG headers: {}", e))?;
 
         let jpeg_info = jpeg_decoder.info().unwrap();
 
         let xmp_bytes = jpeg_decoder.xmp().cloned();
         let exif_bytes = jpeg_decoder.exif().cloned();
 
-        let jpeg_output_color_space = jpeg_decoder.output_colorspace()
-            .ok_or_else(|| "Failed to get JPEG output ColorSpace")
-            ?;
+        let jpeg_output_color_space = jpeg_decoder
+            .output_colorspace()
+            .ok_or_else(|| "Failed to get JPEG output ColorSpace")?;
         trace!("Output color space: {:?}", jpeg_output_color_space);
 
-        let pixels = jpeg_decoder.decode()
-            .map_err(|e| format!("Failed to decode JPEG image: {}", e))
-            ?;
-        trace!("Decoded JPEG: {}x{} with {} bytes", jpeg_info.width, jpeg_info.height, pixels.len());
+        let pixels = jpeg_decoder
+            .decode()
+            .map_err(|e| format!("Failed to decode JPEG image: {}", e))?;
+        trace!(
+            "Decoded JPEG: {}x{} with {} bytes",
+            jpeg_info.width,
+            jpeg_info.height,
+            pixels.len()
+        );
 
         let icc_profile_bytes = jpeg_decoder.icc_profile();
         let icc_profile = if let Some(icc_profile_bytes) = &icc_profile_bytes {
             let icc_profile = lcms2::Profile::new_icc(&icc_profile_bytes)
-                .map_err(|e| format!("Failed to parse ICC profile: {}", e))
-                ?;
+                .map_err(|e| format!("Failed to parse ICC profile: {}", e))?;
             Some(icc_profile)
         } else {
             None
         };
-        
+
         let icc_color_space = icc_profile
             .as_ref()
-            .and_then(|icc_profile| {
-                IccColorSpace::from_icc_profile(icc_profile)
-            });
+            .and_then(|icc_profile| IccColorSpace::from_icc_profile(icc_profile));
         trace!("ICC Color space: {:?}", icc_color_space);
 
         Ok(Self {
@@ -81,7 +82,10 @@ impl UhdrJpeg {
     }
 
     pub fn extent(&self) -> (usize, usize) {
-        (self.jpeg_info.width as usize, self.jpeg_info.height as usize)
+        (
+            self.jpeg_info.width as usize,
+            self.jpeg_info.height as usize,
+        )
     }
 
     pub fn xmp_bytes(&self) -> Option<&[u8]> {
@@ -98,8 +102,7 @@ impl UhdrJpeg {
     }
 
     pub fn color_gamut(&self) -> Option<ColorGamut> {
-        self.icc_color_space()
-            .map(|icc| icc.color_gamut)
+        self.icc_color_space().map(|icc| icc.color_gamut)
     }
 
     /// Returns the MPF (Multi-Picture Format) information bytes if available,
@@ -114,13 +117,14 @@ impl UhdrJpeg {
         let mpf_info = {
             let mpf_bytes = self.mpf_bytes()?;
 
-            MpfInfo::new_from_bytes(mpf_bytes)
-                .ok()
-                ?
+            MpfInfo::new_from_bytes(mpf_bytes).ok()?
         };
 
         if mpf_info.mp_entries().len() < 2 {
-            warn!("Probably not an Ultra HDR JPEG: MPF information does not contain enough entries (found {}), expected at least 2.", mpf_info.mp_entries().len());
+            warn!(
+                "Probably not an Ultra HDR JPEG: MPF information does not contain enough entries (found {}), expected at least 2.",
+                mpf_info.mp_entries().len()
+            );
             return None;
         }
 
@@ -140,7 +144,10 @@ impl UhdrJpeg {
             })
             .ok()?;
 
-        trace!("Gain map JPEG found at offset {} (searched from {})", gain_map_start, search_start);
+        trace!(
+            "Gain map JPEG found at offset {} (searched from {})",
+            gain_map_start, search_start
+        );
         let gain_map_jpeg_bytes = &original_bytes[gain_map_start..];
         let gain_map_jpeg = UhdrJpeg::new_from_bytes(gain_map_jpeg_bytes)
             .map_err(|e| {
@@ -152,11 +159,7 @@ impl UhdrJpeg {
     }
 
     /// Fetches a pixel at the given coordinates (x, y), which is typically in a non-linear color space (i.e. after OETF).
-    pub fn fetch_pixel(
-        &self,
-        x: usize,
-        y: usize,
-    ) -> [f32; 3] {
+    pub fn fetch_pixel(&self, x: usize, y: usize) -> [f32; 3] {
         let pixel_index = (y * self.jpeg_info.width as usize + x) * 3;
 
         let r = self.content.pixels[pixel_index + 0] as f32 / 255.0;
@@ -168,11 +171,7 @@ impl UhdrJpeg {
 
     /// Fetches a pixel at the given coordinates (x, y) and applies the EOTF according the `IccColorSpace` if available.
     /// If no `IccColorSpace` is available, the EOTF is assumed to be gamma of `2.2`.
-    pub fn fetch_pixel_linear(
-        &self,
-        x: usize,
-        y: usize,
-    ) -> [f32; 3] {
+    pub fn fetch_pixel_linear(&self, x: usize, y: usize) -> [f32; 3] {
         let rgb = self.fetch_pixel(x, y);
         self.to_linear(rgb)
     }
@@ -181,17 +180,16 @@ impl UhdrJpeg {
     /// The U and V coordinates are in the range [0, 1].
     /// The function returns the RGB values in the range [0, 1].
     /// If the coordinates are out of bounds, it returns None.
-    pub fn sample_bilinear(
-        &self,
-        u: f32,
-        v: f32,
-    ) -> Option<[f32; 3]> {
+    pub fn sample_bilinear(&self, u: f32, v: f32) -> Option<[f32; 3]> {
         let pixel = sample_bilinear_with(
             self.jpeg_info.width as usize,
             self.jpeg_info.height as usize,
-            u, v,
+            u,
+            v,
             |x, y| {
-                let rgb = self.get_pixel_as_rgb888_unorm_linear(x, y).unwrap_or([0.0; 3]);
+                let rgb = self
+                    .get_pixel_as_rgb888_unorm_linear(x, y)
+                    .unwrap_or([0.0; 3]);
                 FloatPixel::from(rgb)
             },
         );
@@ -217,8 +215,16 @@ impl UhdrJpeg {
 
         if pixel_index < self.content.pixels.len() {
             let (r, g, b) = match self.content.jpeg_color_space {
-                JpegColorSpace::RGB => (self.content.pixels[pixel_index], self.content.pixels[pixel_index + 1], self.content.pixels[pixel_index + 2]),
-                JpegColorSpace::Luma => (self.content.pixels[pixel_index], self.content.pixels[pixel_index], self.content.pixels[pixel_index]),
+                JpegColorSpace::RGB => (
+                    self.content.pixels[pixel_index],
+                    self.content.pixels[pixel_index + 1],
+                    self.content.pixels[pixel_index + 2],
+                ),
+                JpegColorSpace::Luma => (
+                    self.content.pixels[pixel_index],
+                    self.content.pixels[pixel_index],
+                    self.content.pixels[pixel_index],
+                ),
                 _ => return None,
             };
             Some([r, g, b])

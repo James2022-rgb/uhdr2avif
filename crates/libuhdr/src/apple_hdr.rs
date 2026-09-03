@@ -1,4 +1,3 @@
-
 #[cfg(feature = "heif")]
 mod heic;
 
@@ -15,9 +14,12 @@ impl AppleHdrHeicConverter {
     }
 
     /// Compute BT.2020 linear nits pixels from the Apple HDR HEIC.
-    fn compute_hdr_linear_pixels(&self, target_sdr_white_level: f32) -> (usize, usize, crate::pixel::FloatImageContent) {
+    fn compute_hdr_linear_pixels(
+        &self,
+        target_sdr_white_level: f32,
+    ) -> (usize, usize, crate::pixel::FloatImageContent) {
         use crate::colorspace::ColorGamut;
-        use crate::pixel::{FloatPixel, FloatImageContent};
+        use crate::pixel::{FloatImageContent, FloatPixel};
 
         const DST_COLOR_GAMUT: ColorGamut = ColorGamut::bt2020();
 
@@ -55,7 +57,8 @@ impl AppleHdrHeicConverter {
                 let scaled = boosted * target_sdr_white_level;
 
                 // Convert from source gamut to BT.2020.
-                let [r, g, b] = ColorGamut::convert(scaled.rgb(), src_color_gamut, &DST_COLOR_GAMUT);
+                let [r, g, b] =
+                    ColorGamut::convert(scaled.rgb(), src_color_gamut, &DST_COLOR_GAMUT);
 
                 linear_pixels.set_at(x, y, FloatPixel::from([r, g, b]));
             }
@@ -94,7 +97,8 @@ impl AppleHdrHeicConverter {
             height,
             &linear_pixels,
             exif.as_deref(),
-        ).map_err(|e| format!("Failed to write AVIF: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to write AVIF: {}", e))?;
 
         Ok(())
     }
@@ -107,12 +111,8 @@ impl AppleHdrHeicConverter {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let (width, height, linear_pixels) = self.compute_hdr_linear_pixels(target_sdr_white_level);
 
-        crate::outexr::write_hdr10_linear_pixels_to_exr(
-            writer,
-            width,
-            height,
-            &linear_pixels,
-        ).map_err(|e| format!("Failed to write EXR: {}", e))?;
+        crate::outexr::write_hdr10_linear_pixels_to_exr(writer, width, height, &linear_pixels)
+            .map_err(|e| format!("Failed to write EXR: {}", e))?;
 
         Ok(())
     }
@@ -135,7 +135,10 @@ mod tests {
             .filter_map(|entry| {
                 let entry = entry.unwrap();
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("heic")) {
+                if path
+                    .extension()
+                    .map_or(false, |ext| ext.eq_ignore_ascii_case("heic"))
+                {
                     Some(path)
                 } else {
                     None
@@ -144,7 +147,10 @@ mod tests {
             .collect();
 
         println!("HEIC files found: {:?}", heic_file_paths);
-        assert!(!heic_file_paths.is_empty(), "No .heic files found in test directory");
+        assert!(
+            !heic_file_paths.is_empty(),
+            "No .heic files found in test directory"
+        );
 
         for file_path in &heic_file_paths {
             println!("Converting: {}", file_path.display());
@@ -153,10 +159,12 @@ mod tests {
             let converter = AppleHdrHeicConverter::new(&heic_bytes)
                 .expect("Failed to create AppleHdrHeicConverter");
 
-            let output_file_name = format!("{}.avif", file_path.file_stem().unwrap().to_str().unwrap());
+            let output_file_name =
+                format!("{}.avif", file_path.file_stem().unwrap().to_str().unwrap());
             let mut out_file = std::fs::File::create(&output_file_name).unwrap();
 
-            converter.convert_to_avif(&mut out_file, TARGET_SDR_WHITE_LEVEL, true)
+            converter
+                .convert_to_avif(&mut out_file, TARGET_SDR_WHITE_LEVEL, true)
                 .expect("Failed to convert HEIC to AVIF");
 
             println!("Written: {}", output_file_name);

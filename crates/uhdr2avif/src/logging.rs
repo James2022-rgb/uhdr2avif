@@ -1,4 +1,3 @@
-
 #[derive(Default)]
 pub struct LoggingConfig {
     output_to_file: bool,
@@ -18,11 +17,11 @@ impl LoggingConfig {
         let base_config = fern::Dispatch::new();
 
         let colors_line = ColoredLevelConfig::new()
-          .error(Color::Red)
-          .warn(Color::Yellow)
-          .info(Color::White) // Default
-          .debug(Color::BrightMagenta) // Default
-          .trace(Color::BrightBlack);
+            .error(Color::Red)
+            .warn(Color::Yellow)
+            .info(Color::White) // Default
+            .debug(Color::BrightMagenta) // Default
+            .trace(Color::BrightBlack);
         let colors_level = colors_line.info(Color::Green);
 
         let stderr_config = fern::Dispatch::new()
@@ -52,42 +51,37 @@ impl LoggingConfig {
           })
           .chain(std::io::stderr());
 
-        let mut config = base_config
-          .chain(stderr_config);
+        let mut config = base_config.chain(stderr_config);
 
         if self.output_to_file {
-          let log_file = fern::log_file("log.txt")
-            .unwrap();
+            let log_file = fern::log_file("log.txt").unwrap();
 
-          let log_file_config = fern::Dispatch::new()
-            .format(|out, message, record| {
-              out.finish(format_args!(
-                "{date} {level} [{target}]{file_line} {message}",
-                date = chrono::Local::now().format("[%Y/%m/%d %H:%M:%S]"),
-                level = record.level(),
-                target = record.target(),
-                file_line = match record.level() {
-                  Level::Error | Level::Warn | Level::Debug => {
-                    format!(
-                      " [{file}:{line}]",
-                      file = record.file().unwrap_or("N/A"),
-                      line = record.line().unwrap_or(0)
-                    )
-                  },
-                  _ => {
-                    Default::default()
-                  }
-                }
-              ));
-            })
-            .chain(log_file);
+            let log_file_config = fern::Dispatch::new()
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "{date} {level} [{target}]{file_line} {message}",
+                        date = chrono::Local::now().format("[%Y/%m/%d %H:%M:%S]"),
+                        level = record.level(),
+                        target = record.target(),
+                        file_line = match record.level() {
+                            Level::Error | Level::Warn | Level::Debug => {
+                                format!(
+                                    " [{file}:{line}]",
+                                    file = record.file().unwrap_or("N/A"),
+                                    line = record.line().unwrap_or(0)
+                                )
+                            }
+                            _ => {
+                                Default::default()
+                            }
+                        }
+                    ));
+                })
+                .chain(log_file);
 
-            config = config
-                .chain(log_file_config);
+            config = config.chain(log_file_config);
         }
 
-        config
-          .apply()
-          .unwrap();
+        config.apply().unwrap();
     }
 }
