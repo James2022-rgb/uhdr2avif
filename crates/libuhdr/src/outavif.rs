@@ -2,6 +2,7 @@
 
 use std::io::Write;
 
+use log::trace;
 use rav1e::prelude::*;
 
 use crate::pixel::FloatImageContent;
@@ -13,6 +14,7 @@ pub fn write_hdr10_linear_pixels_to_avif<W: Write>(
     content: &FloatImageContent,
     exif: Option<&[u8]>,
 ) -> std::io::Result<()> {
+    trace!("Converting {}x{} HDR pixels to 10-bit YCbCr", width, height);
     let mut ycbcr_pixels: Vec<[u16; 3]> = Vec::with_capacity(width * height);
     for y in 0..height {
         for x in 0..width {
@@ -44,6 +46,7 @@ pub fn write_hdr10_linear_pixels_to_avif<W: Write>(
         }
     }
 
+    trace!("YCbCr conversion complete: {} pixels", ycbcr_pixels.len());
     write_hdr10_ycbcr_pixels_to_avif(writer, width, height, &ycbcr_pixels, exif)
 }
 
@@ -56,8 +59,10 @@ pub fn write_hdr10_ycbcr_pixels_to_avif<W: Write>(
     ycbcr_pixels: &[[u16; 3]],
     exif: Option<&[u8]>,
 ) -> std::io::Result<()> {
+    trace!("Starting 10-bit AV1 encoding for {}x{} image", width, height);
     let av1_data = encode_av1_still_10bit(width, height, ycbcr_pixels)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    trace!("AV1 encoding complete: {} bytes", av1_data.len());
 
     let mut aviffy = avif_serialize::Aviffy::new();
     aviffy.transfer_characteristics(avif_serialize::constants::TransferCharacteristics::Smpte2084);
@@ -66,7 +71,9 @@ pub fn write_hdr10_ycbcr_pixels_to_avif<W: Write>(
     if let Some(exif) = exif {
         aviffy.set_exif(exif.to_vec());
     }
+    trace!("Writing AVIF container");
     aviffy.write(writer, &av1_data, None, width as u32, height as u32, 10)?;
+    trace!("AVIF container written");
 
     Ok(())
 }
@@ -76,6 +83,7 @@ fn encode_av1_still_10bit(
     height: usize,
     ycbcr_pixels: &[[u16; 3]],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    trace!("Creating rav1e context: 10-bit 4:4:4, quantizer 0, speed preset 4");
     let cfg = Config::new().with_encoder_config(EncoderConfig {
         width,
         height,
@@ -130,14 +138,24 @@ fn encode_av1_still_10bit(
 
     ctx.send_frame(frame)?;
     ctx.flush();
+    trace!("AV1 frame submitted; draining encoder packets");
 
     let mut av1_data = Vec::new();
+    let mut packet_count = 0;
     loop {
         match ctx.receive_packet() {
             Ok(packet) => {
                 av1_data.extend_from_slice(&packet.data);
+                packet_count += 1;
             }
-            Err(EncoderStatus::Encoded) | Err(EncoderStatus::LimitReached) => break,
+            Err(EncoderStatus::Encoded) => {
+                trace!("AV1 encoder finished after {} packets (Encoded)", packet_count);
+                break;
+            }
+            Err(EncoderStatus::LimitReached) => {
+                trace!("AV1 encoder finished after {} packets (LimitReached)", packet_count);
+                break;
+            }
             Err(e) => return Err(Box::new(e)),
         }
     }
