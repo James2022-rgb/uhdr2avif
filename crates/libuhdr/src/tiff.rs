@@ -1,4 +1,3 @@
-
 // https://www.itu.int/itudoc/itu-t/com16/tiff-fx/docs/tiff6.pdf
 
 use std::io::{Read, Seek};
@@ -164,7 +163,7 @@ impl TiffHeader {
             0x4D4D => Endianness::BigEndian,
             _ => unreachable!(), // This case is already handled above
         };
-        
+
         let version = read_u16(reader, endianness)?;
         if version < 42 {
             return Err(std::io::Error::new(
@@ -185,16 +184,28 @@ impl TiffHeader {
 
 impl TiffIfd {
     /// * `reader` - The `Read` from which to read the IFD. Must be positioned at the start of the IFD.
-    pub(crate) fn new<R: Read + Seek>(reader: &mut R, endianness: Endianness, version: u16) -> std::io::Result<Self> {
+    pub(crate) fn new<R: Read + Seek>(
+        reader: &mut R,
+        endianness: Endianness,
+        version: u16,
+    ) -> std::io::Result<Self> {
         let value_offset_size = match version {
             42 => 4usize, // 32-bit offset
             43 => 8usize, // 64-bit offset
-            _ => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Unsupported TIFF version: {}", version))),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Unsupported TIFF version: {}", version),
+                ));
+            }
         };
 
         let entry_count = read_u16(reader, endianness)?;
         if entry_count < 1 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid IFD entry count"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid IFD entry count",
+            ));
         }
 
         let mut entries: Vec<TiffIfdEntry> = Vec::with_capacity(entry_count as usize);
@@ -204,14 +215,19 @@ impl TiffIfd {
             let field_type = read_u16(reader, endianness)?;
             let count = read_u32(reader, endianness)?;
 
-            let field_type = TiffFieldType::from_u16(field_type)
-                .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("Invalid field type: {}", field_type)))?;
+            let field_type = TiffFieldType::from_u16(field_type).ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("Invalid field type: {}", field_type),
+                )
+            })?;
 
             let size = field_type.size() * count as usize;
 
             let field_value = if size <= value_offset_size {
                 // The field value is stored directly in the IFD entry.
-                let field_value = TiffFieldValue::from_reader(reader, endianness, field_type, count)?;
+                let field_value =
+                    TiffFieldValue::from_reader(reader, endianness, field_type, count)?;
                 // Skip padding bytes so the reader is aligned to the end of the value/offset field.
                 let padding = value_offset_size - size;
                 if padding > 0 {
@@ -231,7 +247,8 @@ impl TiffIfd {
                 let old_position = reader.stream_position()?;
                 reader.seek(std::io::SeekFrom::Start(value_offset))?;
 
-                let field_value = TiffFieldValue::from_reader(reader, endianness, field_type, count)?;
+                let field_value =
+                    TiffFieldValue::from_reader(reader, endianness, field_type, count)?;
                 reader.seek(std::io::SeekFrom::Start(old_position))?;
                 field_value
             };
@@ -280,7 +297,12 @@ impl TiffFieldType {
 }
 
 impl TiffFieldValue {
-    fn from_reader<R: Read>(reader: &mut R, endianness: Endianness, field_type: TiffFieldType, count: u32) -> std::io::Result<Self> {
+    fn from_reader<R: Read>(
+        reader: &mut R,
+        endianness: Endianness,
+        field_type: TiffFieldType,
+        count: u32,
+    ) -> std::io::Result<Self> {
         match field_type {
             TiffFieldType::BYTE => {
                 let mut buffer = vec![0; count as usize];
@@ -290,7 +312,9 @@ impl TiffFieldValue {
             TiffFieldType::ASCII => {
                 let mut buffer = vec![0; count as usize];
                 reader.read_exact(&mut buffer)?;
-                let string = String::from_utf8(buffer).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid ASCII string"))?;
+                let string = String::from_utf8(buffer).map_err(|_| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid ASCII string")
+                })?;
                 Ok(TiffFieldValue::ASCII(string))
             }
             TiffFieldType::SHORT => {
@@ -299,14 +323,14 @@ impl TiffFieldValue {
                     values[i as usize] = read_u16(reader, endianness)?;
                 }
                 Ok(TiffFieldValue::SHORT(values))
-            },
+            }
             TiffFieldType::LONG => {
                 let mut values = vec![0; count as usize];
                 for i in 0..count {
                     values[i as usize] = read_u32(reader, endianness)?;
                 }
                 Ok(TiffFieldValue::LONG(values))
-            },
+            }
             TiffFieldType::RATIONAL => {
                 let mut values = vec![(0, 0); count as usize];
                 for i in 0..count {
@@ -315,32 +339,32 @@ impl TiffFieldValue {
                     values[i as usize] = (numerator, denominator);
                 }
                 Ok(TiffFieldValue::RATIONAL(values))
-            },
+            }
             TiffFieldType::SBYTE => {
                 let mut buffer = vec![0; count as usize];
                 reader.read_exact(&mut buffer)?;
                 let values: Vec<i8> = buffer.iter().map(|&b| b as i8).collect();
                 Ok(TiffFieldValue::SBYTE(values))
-            },
+            }
             TiffFieldType::UNDEFINED => {
                 let mut buffer = vec![0; count as usize];
                 reader.read_exact(&mut buffer)?;
                 Ok(TiffFieldValue::UNDEFINED(buffer))
-            },
+            }
             TiffFieldType::SSHORT => {
                 let mut values = vec![0; count as usize];
                 for i in 0..count {
                     values[i as usize] = read_u16(reader, endianness)? as i16;
                 }
                 Ok(TiffFieldValue::SSHORT(values))
-            },
+            }
             TiffFieldType::SLONG => {
                 let mut values = vec![0; count as usize];
                 for i in 0..count {
                     values[i as usize] = read_u32(reader, endianness)? as i32;
                 }
                 Ok(TiffFieldValue::SLONG(values))
-            },
+            }
             TiffFieldType::SRATIONAL => {
                 let mut values = vec![(0, 0); count as usize];
                 for i in 0..count {
@@ -349,7 +373,7 @@ impl TiffFieldValue {
                     values[i as usize] = (numerator, denominator);
                 }
                 Ok(TiffFieldValue::SRATIONAL(values))
-            },
+            }
             TiffFieldType::FLOAT => {
                 let mut values = vec![0.0; count as usize];
                 for i in 0..count {
@@ -357,7 +381,7 @@ impl TiffFieldValue {
                     values[i as usize] = value;
                 }
                 Ok(TiffFieldValue::FLOAT(values))
-            },
+            }
             TiffFieldType::DOUBLE => {
                 let mut values = vec![0.0; count as usize];
                 for i in 0..count {
@@ -365,7 +389,7 @@ impl TiffFieldValue {
                     values[i as usize] = value;
                 }
                 Ok(TiffFieldValue::DOUBLE(values))
-            },
+            }
             // Handle other field types similarly
             _ => unimplemented!(),
         }

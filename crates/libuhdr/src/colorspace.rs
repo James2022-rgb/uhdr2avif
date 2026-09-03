@@ -1,6 +1,5 @@
-
 use derive_more::Debug;
-use lcms2::{Profile, TagSignature, Tag, CIEXYZ, CIExyY, ToneCurve};
+use lcms2::{CIEXYZ, CIExyY, Profile, Tag, TagSignature, ToneCurve};
 
 #[derive(Debug, Clone)]
 pub struct IccColorSpace {
@@ -57,32 +56,40 @@ impl IccColorSpace {
 }
 
 impl ColorGamut {
-    const WHITE_POINT_D50: CIExyY = CIExyY { x: 0.3457, y: 0.3585, Y: 1.0000 };
-    const WHITE_POINT_D65: CIExyY = CIExyY { x: 0.3127, y: 0.3290, Y: 1.0000 };
+    const WHITE_POINT_D50: CIExyY = CIExyY {
+        x: 0.3457,
+        y: 0.3585,
+        Y: 1.0000,
+    };
+    const WHITE_POINT_D65: CIExyY = CIExyY {
+        x: 0.3127,
+        y: 0.3290,
+        Y: 1.0000,
+    };
 
     /// Constructs a `ColorGamut` from explicit xy chromaticity coordinates.
     ///
     /// The luminance (Y) value of each primary is computed so that
     /// `(1, 1, 1)` in RGB maps to the given white point in XYZ.
     pub fn from_xy_primaries(
-        red_x: f64, red_y: f64,
-        green_x: f64, green_y: f64,
-        blue_x: f64, blue_y: f64,
-        white_x: f64, white_y: f64,
+        red_x: f64,
+        red_y: f64,
+        green_x: f64,
+        green_y: f64,
+        blue_x: f64,
+        blue_y: f64,
+        white_x: f64,
+        white_y: f64,
     ) -> Self {
         // Unscaled chromaticity matrix T (each row normalised to Y=1).
         let t = [
-            [red_x / red_y,   1.0, (1.0 - red_x   - red_y)   / red_y],
+            [red_x / red_y, 1.0, (1.0 - red_x - red_y) / red_y],
             [green_x / green_y, 1.0, (1.0 - green_x - green_y) / green_y],
-            [blue_x / blue_y,  1.0, (1.0 - blue_x  - blue_y)  / blue_y],
+            [blue_x / blue_y, 1.0, (1.0 - blue_x - blue_y) / blue_y],
         ];
 
         // White point XYZ (normalised to Y=1).
-        let w_xyz = [
-            white_x / white_y,
-            1.0,
-            (1.0 - white_x - white_y) / white_y,
-        ];
+        let w_xyz = [white_x / white_y, 1.0, (1.0 - white_x - white_y) / white_y];
 
         // Solve [Sr, Sg, Sb] = W * T^-1  — these are the luminance (Y)
         // scaling factors for each primary.
@@ -91,11 +98,27 @@ impl ColorGamut {
 
         Self {
             primaries: ColorPrimaries {
-                red:   CIExyY { x: red_x,   y: red_y,   Y: s[0] },
-                green: CIExyY { x: green_x, y: green_y, Y: s[1] },
-                blue:  CIExyY { x: blue_x,  y: blue_y,  Y: s[2] },
+                red: CIExyY {
+                    x: red_x,
+                    y: red_y,
+                    Y: s[0],
+                },
+                green: CIExyY {
+                    x: green_x,
+                    y: green_y,
+                    Y: s[1],
+                },
+                blue: CIExyY {
+                    x: blue_x,
+                    y: blue_y,
+                    Y: s[2],
+                },
             },
-            white_point: CIExyY { x: white_x, y: white_y, Y: 1.0 },
+            white_point: CIExyY {
+                x: white_x,
+                y: white_y,
+                Y: 1.0,
+            },
         }
     }
 
@@ -111,9 +134,21 @@ impl ColorGamut {
     pub const fn bt2020() -> Self {
         Self {
             primaries: ColorPrimaries {
-                red: CIExyY { x: 0.7080, y: 0.2920, Y: 0.2627 },
-                green: CIExyY { x: 0.1700, y: 0.7970, Y: 0.6780 },
-                blue: CIExyY { x: 0.1310, y: 0.0460, Y: 0.0593 },
+                red: CIExyY {
+                    x: 0.7080,
+                    y: 0.2920,
+                    Y: 0.2627,
+                },
+                green: CIExyY {
+                    x: 0.1700,
+                    y: 0.7970,
+                    Y: 0.6780,
+                },
+                blue: CIExyY {
+                    x: 0.1310,
+                    y: 0.0460,
+                    Y: 0.0593,
+                },
             },
             white_point: Self::WHITE_POINT_D65,
         }
@@ -124,9 +159,21 @@ impl ColorGamut {
     pub const fn display_p3() -> Self {
         Self {
             primaries: ColorPrimaries {
-                red: CIExyY { x: 0.6800, y: 0.3200, Y: 0.2290 },
-                green: CIExyY { x: 0.2650, y: 0.6900, Y: 0.6917 },
-                blue: CIExyY { x: 0.1500, y: 0.0600, Y: 0.0793 },
+                red: CIExyY {
+                    x: 0.6800,
+                    y: 0.3200,
+                    Y: 0.2290,
+                },
+                green: CIExyY {
+                    x: 0.2650,
+                    y: 0.6900,
+                    Y: 0.6917,
+                },
+                blue: CIExyY {
+                    x: 0.1500,
+                    y: 0.0600,
+                    Y: 0.0793,
+                },
             },
             white_point: Self::WHITE_POINT_D65,
         }
@@ -158,11 +205,14 @@ impl ColorGamut {
                         ];
 
                         Some(invert_matrix(to_d50)?)
-                    },
+                    }
                     _ => {
-                        eprintln!("Expected CIExyYTRIPLE tag for Chromatic Adaptation, but got {:?}", tag);
+                        eprintln!(
+                            "Expected CIExyYTRIPLE tag for Chromatic Adaptation, but got {:?}",
+                            tag
+                        );
                         return None;
-                    },
+                    }
                 }
             } else {
                 None
@@ -175,12 +225,16 @@ impl ColorGamut {
         let white_point = if let Some(from_d50) = &from_d50 {
             // Some non-D50 white point, in many cases D65.
             let result = transform_right(&[white_point.X, white_point.Y, white_point.Z], from_d50);
-            CIEXYZ { X: result[0], Y: result[1], Z: result[2] }
+            CIEXYZ {
+                X: result[0],
+                Y: result[1],
+                Z: result[2],
+            }
         } else {
             // D50.
             white_point
         };
-        
+
         let white_point = lcms2::XYZ2xyY(&white_point);
 
         // Single Chromaticity tag present ?
@@ -195,8 +249,11 @@ impl ColorGamut {
                         },
                         white_point,
                     });
-                },
-                _ => panic!("Expected CIExyYTRIPLE tag for ChromaticityTag but got {:?}", tag),
+                }
+                _ => panic!(
+                    "Expected CIExyYTRIPLE tag for ChromaticityTag but got {:?}",
+                    tag
+                ),
             }
         }
 
@@ -209,13 +266,38 @@ impl ColorGamut {
 
         let (red_primary, green_primary, blue_primary) = if let Some(from_d50) = &from_d50 {
             // Unadapt from D50 PCS to the actual device primaries
-            let red_xyz = transform_right(&[red_primary_xyz.X, red_primary_xyz.Y, red_primary_xyz.Z], from_d50);
-            let green_xyz = transform_right(&[green_primary_xyz.X, green_primary_xyz.Y, green_primary_xyz.Z], from_d50);
-            let blue_xyz = transform_right(&[blue_primary_xyz.X, blue_primary_xyz.Y, blue_primary_xyz.Z], from_d50);
+            let red_xyz = transform_right(
+                &[red_primary_xyz.X, red_primary_xyz.Y, red_primary_xyz.Z],
+                from_d50,
+            );
+            let green_xyz = transform_right(
+                &[
+                    green_primary_xyz.X,
+                    green_primary_xyz.Y,
+                    green_primary_xyz.Z,
+                ],
+                from_d50,
+            );
+            let blue_xyz = transform_right(
+                &[blue_primary_xyz.X, blue_primary_xyz.Y, blue_primary_xyz.Z],
+                from_d50,
+            );
             (
-                lcms2::XYZ2xyY(&CIEXYZ { X: red_xyz[0], Y: red_xyz[1], Z: red_xyz[2] }),
-                lcms2::XYZ2xyY(&CIEXYZ { X: green_xyz[0], Y: green_xyz[1], Z: green_xyz[2] }),
-                lcms2::XYZ2xyY(&CIEXYZ { X: blue_xyz[0], Y: blue_xyz[1], Z: blue_xyz[2] }),
+                lcms2::XYZ2xyY(&CIEXYZ {
+                    X: red_xyz[0],
+                    Y: red_xyz[1],
+                    Z: red_xyz[2],
+                }),
+                lcms2::XYZ2xyY(&CIEXYZ {
+                    X: green_xyz[0],
+                    Y: green_xyz[1],
+                    Z: green_xyz[2],
+                }),
+                lcms2::XYZ2xyY(&CIEXYZ {
+                    X: blue_xyz[0],
+                    Y: blue_xyz[1],
+                    Z: blue_xyz[2],
+                }),
             )
         } else {
             (
@@ -271,11 +353,7 @@ impl ColorGamut {
             let b_Y = src_p.blue.Y;
             let b_Z = (1.0 - src_p.blue.x - src_p.blue.y) * b_Y / src_p.blue.y;
 
-            [
-                [r_X, r_Y, r_Z],
-                [g_X, g_Y, g_Z],
-                [b_X, b_Y, b_Z],
-            ]
+            [[r_X, r_Y, r_Z], [g_X, g_Y, g_Z], [b_X, b_Y, b_Z]]
         };
 
         // UnscaledXYZ is not correctly scaled to the destitnation gamut white point:
@@ -292,14 +370,17 @@ impl ColorGamut {
                 let w_X = dst.white_point.x * dst.white_point.Y / dst.white_point.y;
                 let w_Y = dst.white_point.Y;
                 let w_Z = (1.0 - dst.white_point.x - dst.white_point.y) * w_Y / dst.white_point.y;
-    
+
                 [w_X, w_Y, w_Z]
             };
 
-            transform_right(&dst_white_point_XYZ, &invert_matrix(src_rgb_to_XYZ).unwrap())
+            transform_right(
+                &dst_white_point_XYZ,
+                &invert_matrix(src_rgb_to_XYZ).unwrap(),
+            )
         };
 
-        let XYZ_to_dst_rgb= {
+        let XYZ_to_dst_rgb = {
             let dst_p = &dst.primaries;
 
             let dst_rgb_to_XYZ = {
@@ -312,18 +393,17 @@ impl ColorGamut {
                 let b_X = dst_p.blue.x * dst_p.blue.Y / dst_p.blue.y;
                 let b_Y = dst_p.blue.Y;
                 let b_Z = (1.0 - dst_p.blue.x - dst_p.blue.y) * b_Y / dst_p.blue.y;
-    
-                [
-                    [r_X, r_Y, r_Z],
-                    [g_X, g_Y, g_Z],
-                    [b_X, b_Y, b_Z],
-                ]
+
+                [[r_X, r_Y, r_Z], [g_X, g_Y, g_Z], [b_X, b_Y, b_Z]]
             };
 
             invert_matrix(dst_rgb_to_XYZ).unwrap()
         };
 
-        let value_XYZ = transform_right(&[value[0] as f64, value[1] as f64, value[2] as f64], &src_rgb_to_XYZ);        
+        let value_XYZ = transform_right(
+            &[value[0] as f64, value[1] as f64, value[2] as f64],
+            &src_rgb_to_XYZ,
+        );
         let value_XYZ = [
             value_XYZ[0] * chromatic_adaptation[0],
             value_XYZ[1] * chromatic_adaptation[1],
@@ -343,17 +423,41 @@ impl ColorGamut {
 impl ColorPrimaries {
     pub const fn srgb() -> Self {
         Self {
-            red: CIExyY { x: 0.6400, y: 0.3300, Y: 0.2126 },
-            green: CIExyY { x: 0.3000, y: 0.6000, Y: 0.7152 },
-            blue: CIExyY { x: 0.1500, y: 0.0600, Y: 0.0722 },
+            red: CIExyY {
+                x: 0.6400,
+                y: 0.3300,
+                Y: 0.2126,
+            },
+            green: CIExyY {
+                x: 0.3000,
+                y: 0.6000,
+                Y: 0.7152,
+            },
+            blue: CIExyY {
+                x: 0.1500,
+                y: 0.0600,
+                Y: 0.0722,
+            },
         }
     }
 
     pub const fn prophoto_rgb() -> Self {
         Self {
-            red: CIExyY { x: 0.7347, y: 0.2653, Y: 0.28804  },
-            green: CIExyY { x: 0.1596, y: 0.8404, Y: 0.71188 },
-            blue: CIExyY { x: 0.0366, y: 0.0001, Y: 0.00009 },
+            red: CIExyY {
+                x: 0.7347,
+                y: 0.2653,
+                Y: 0.28804,
+            },
+            green: CIExyY {
+                x: 0.1596,
+                y: 0.8404,
+                Y: 0.71188,
+            },
+            blue: CIExyY {
+                x: 0.0366,
+                y: 0.0001,
+                Y: 0.00009,
+            },
         }
     }
 
@@ -437,8 +541,8 @@ fn read_mlu_tag(icc_profile: &Profile, sig: TagSignature) -> Option<String> {
 
             let locale = mlu.tanslations()[0];
 
-            return Some(mlu.text(locale).unwrap())
-        },
+            return Some(mlu.text(locale).unwrap());
+        }
         _ => panic!("Expected MLU tag"),
     }
 }
@@ -447,9 +551,7 @@ fn read_mlu_tag(icc_profile: &Profile, sig: TagSignature) -> Option<String> {
 fn read_CIEXYZ_tag(icc_profile: &Profile, sig: TagSignature) -> Option<CIEXYZ> {
     let tag = read_tag(icc_profile, sig)?;
     match tag {
-        Tag::CIEXYZ(xyz) => {
-            return Some(*xyz)
-        },
+        Tag::CIEXYZ(xyz) => return Some(*xyz),
         _ => panic!("Expected CIEXYZ tag"),
     }
 }
@@ -465,15 +567,15 @@ fn read_tag(icc_profile: &Profile, sig: TagSignature) -> Option<Tag<'_>> {
 fn transform_right(row_vector: &[f64; 3], matrix: &[[f64; 3]; 3]) -> [f64; 3] {
     let mut result = [0.0; 3];
     for i in 0..3 {
-        result[i] = row_vector[0] * matrix[0][i] +
-                    row_vector[1] * matrix[1][i] +
-                    row_vector[2] * matrix[2][i];
+        result[i] = row_vector[0] * matrix[0][i]
+            + row_vector[1] * matrix[1][i]
+            + row_vector[2] * matrix[2][i];
     }
     result
 }
 
 /// Multiply a 3x3 matrix by another from the right.
-fn multiply(a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]) -> [[f64; 3]; 3]{
+fn multiply(a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]) -> [[f64; 3]; 3] {
     let mut result = [[0.0; 3]; 3];
     for i in 0..3 {
         for j in 0..3 {
@@ -484,8 +586,7 @@ fn multiply(a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]) -> [[f64; 3]; 3]{
 }
 
 fn invert_matrix(matrix: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
-    let det =
-          matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+    let det = matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
         - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
         + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
 

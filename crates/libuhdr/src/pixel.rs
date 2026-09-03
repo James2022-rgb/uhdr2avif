@@ -1,4 +1,3 @@
-
 use std::ops;
 
 #[derive(Clone)]
@@ -13,18 +12,29 @@ impl FloatImageContent {
     pub fn with_extent(width: usize, height: usize) -> Self {
         let pixel_count = width * height;
         let pixels = vec![FloatPixel::zero(); pixel_count];
-        Self { width, height, pixels }
+        Self {
+            width,
+            height,
+            pixels,
+        }
     }
 
-    pub fn width(&self) -> usize { self.width }
-    pub fn height(&self) -> usize { self.height }
+    pub fn width(&self) -> usize {
+        self.width
+    }
+    pub fn height(&self) -> usize {
+        self.height
+    }
 
     pub fn get_at(&self, x: usize, y: usize) -> FloatPixel {
         let index = y * self.width + x;
         if index < self.pixels.len() {
             self.pixels[index]
         } else {
-            panic!("Attempted to get pixel at ({}, {}) out of bounds for image of size {}x{}", x, y, self.width, self.height);
+            panic!(
+                "Attempted to get pixel at ({}, {}) out of bounds for image of size {}x{}",
+                x, y, self.width, self.height
+            );
         }
     }
 
@@ -34,7 +44,10 @@ impl FloatImageContent {
         if index < self.pixels.len() {
             self.pixels[index] = pixel;
         } else {
-            panic!("Attempted to set pixel at ({}, {}) out of bounds for image of size {}x{}", x, y, self.width, self.height);
+            panic!(
+                "Attempted to set pixel at ({}, {}) out of bounds for image of size {}x{}",
+                x, y, self.width, self.height
+            );
         }
     }
 
@@ -48,11 +61,7 @@ impl FloatImageContent {
     }
 
     /// Fetches a pixel at the given coordinates (x, y).
-    pub fn fetch_pixel(
-        &self,
-        x: usize,
-        y: usize,
-    ) -> FloatPixel {
+    pub fn fetch_pixel(&self, x: usize, y: usize) -> FloatPixel {
         let pixel_index = (y * self.width + x) * 3;
 
         self.pixels[pixel_index]
@@ -84,8 +93,16 @@ where
     let x = u * w;
     let y = v * h;
 
-    let base_x = if x.fract() < 0.5 { x.floor() - 1.0 } else { x.floor() };
-    let base_y = if y.fract() < 0.5 { y.floor() - 1.0 } else { y.floor() };
+    let base_x = if x.fract() < 0.5 {
+        x.floor() - 1.0
+    } else {
+        x.floor()
+    };
+    let base_y = if y.fract() < 0.5 {
+        y.floor() - 1.0
+    } else {
+        y.floor()
+    };
 
     let base_x = (base_x as isize).clamp(0, width as isize - 1) as usize;
     let base_y = (base_y as isize).clamp(0, height as isize - 1) as usize;
@@ -101,7 +118,9 @@ where
     let s = (x - base_x as f32).clamp(0.0, 1.0);
     let t = (y - base_y as f32).clamp(0.0, 1.0);
 
-    fn lerp(a: f32, b: f32, t: f32) -> f32 { a + (b - a) * t }
+    fn lerp(a: f32, b: f32, t: f32) -> f32 {
+        a + (b - a) * t
+    }
 
     FloatPixel::new(
         lerp(lerp(p00.r(), p10.r(), s), lerp(p01.r(), p11.r(), s), t),
@@ -121,7 +140,9 @@ pub struct FloatPixel {
 
 impl From<[f32; 3]> for FloatPixel {
     fn from(inner: [f32; 3]) -> Self {
-        Self { inner: [inner[0], inner[1], inner[2], 0.0] }
+        Self {
+            inner: [inner[0], inner[1], inner[2], 0.0],
+        }
     }
 }
 
@@ -231,15 +252,21 @@ impl ops::Div for FloatPixel {
 
 impl FloatPixel {
     pub const fn zero() -> Self {
-        Self { inner: [0.0, 0.0, 0.0, 0.0] }
+        Self {
+            inner: [0.0, 0.0, 0.0, 0.0],
+        }
     }
 
     pub const fn one() -> Self {
-        Self { inner: [1.0, 1.0, 1.0, 0.0] }
+        Self {
+            inner: [1.0, 1.0, 1.0, 0.0],
+        }
     }
 
     pub fn new(r: f32, g: f32, b: f32) -> Self {
-        Self { inner: [r, g, b, 0.0] }
+        Self {
+            inner: [r, g, b, 0.0],
+        }
     }
 
     #[inline]
@@ -298,4 +325,3 @@ impl FloatPixel {
         }
     }
 }
-

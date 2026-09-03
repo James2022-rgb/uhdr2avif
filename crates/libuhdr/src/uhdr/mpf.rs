@@ -1,4 +1,3 @@
-
 use crate::tiff;
 
 /// Represents the Multi-Page File (MPF) information extracted from TIFF bytes,
@@ -31,21 +30,29 @@ impl MpfInfo {
 
         let version_entry = mp_index_ifd.entry_with_tag(0xB000).unwrap();
         let version_bytes = version_entry.field_value_as_undefined().unwrap();
-        assert_eq!(version_bytes, &[48, 49, 48, 48], "Version bytes must be '0', '1', '0', '0'");
+        assert_eq!(
+            version_bytes,
+            &[48, 49, 48, 48],
+            "Version bytes must be '0', '1', '0', '0'"
+        );
 
         let number_of_images = {
             let number_of_images_entry = mp_index_ifd.entry_with_tag(0xB001).unwrap();
-            *number_of_images_entry.field_value_as_long().ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Failed to read number of images",
-                )
-            })?.first().ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "No value found for number of images",
-                )
-            })?
+            *number_of_images_entry
+                .field_value_as_long()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Failed to read number of images",
+                    )
+                })?
+                .first()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "No value found for number of images",
+                    )
+                })?
         };
 
         let mut mp_entries: Vec<MpfMpEntry> = Vec::new();
@@ -56,12 +63,24 @@ impl MpfInfo {
 
             for i in 0..number_of_images {
                 let mp_entry_bytes = &mp_entry_bytes[i as usize * 16..(i + 1) as usize * 16];
-                
+
                 let individual_image_attribute = &mp_entry_bytes[0..4];
-                let individual_image_size = mpf_tiff.header.endianness.read_u32(&mut &mp_entry_bytes[4..8])?;
-                let individual_image_data_offset = mpf_tiff.header.endianness.read_u32(&mut &mp_entry_bytes[8..12])?;
-                let dependent_image_1_entry_number = mpf_tiff.header.endianness.read_u16(&mut &mp_entry_bytes[12..14])?;
-                let dependent_image_2_entry_number = mpf_tiff.header.endianness.read_u16(&mut &mp_entry_bytes[14..16])?;
+                let individual_image_size = mpf_tiff
+                    .header
+                    .endianness
+                    .read_u32(&mut &mp_entry_bytes[4..8])?;
+                let individual_image_data_offset = mpf_tiff
+                    .header
+                    .endianness
+                    .read_u32(&mut &mp_entry_bytes[8..12])?;
+                let dependent_image_1_entry_number = mpf_tiff
+                    .header
+                    .endianness
+                    .read_u16(&mut &mp_entry_bytes[12..14])?;
+                let dependent_image_2_entry_number = mpf_tiff
+                    .header
+                    .endianness
+                    .read_u16(&mut &mp_entry_bytes[14..16])?;
 
                 mp_entries.push(MpfMpEntry {
                     individual_image_attribute: individual_image_attribute.try_into().unwrap(),
@@ -70,11 +89,9 @@ impl MpfInfo {
                     dependent_image_1_entry_number,
                     dependent_image_2_entry_number,
                 });
-            }                
+            }
         }
 
-        Ok(Self {
-            mp_entries,
-        })
+        Ok(Self { mp_entries })
     }
 }

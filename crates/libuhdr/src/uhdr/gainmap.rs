@@ -1,9 +1,8 @@
-
 /// See: https://developer.android.com/media/platform/hdr-image-format
 #[derive(Debug, Clone, Copy)]
 pub struct GainMapMetadata {
     /// Indicates the dynamic range of the primary image. It is required to be set to `false`: https://developer.android.com/media/platform/hdr-image-format#HDR_gain_map_metadata
-    /// 
+    ///
     /// `false` indicates the primary image is SDR and the gain map can be combined with it to produce an HDR rendition.
     /// `true` indicates the primary image is HDR and the gain map can be combined with it to produce the SDR rendition.
     pub base_rendition_is_hdr: bool,
@@ -26,16 +25,28 @@ pub struct GainMapMetadata {
 impl GainMapMetadata {
     pub fn new_from_xmp_bytes(xmp_bytes: &[u8]) -> Option<Self> {
         let doc = roxmltree::Document::parse(std::str::from_utf8(xmp_bytes).unwrap()).unwrap();
-        let description_element_node = doc.descendants().find(|node| node.tag_name().name() == "Description").unwrap();
+        let description_element_node = doc
+            .descendants()
+            .find(|node| node.tag_name().name() == "Description")
+            .unwrap();
 
-        let base_rendition_is_hdr = Self::read_single_bool_value(&description_element_node, "BaseRenditionIsHDR").unwrap_or(false);
-        let gain_map_min = Self::read_rgb_f32_value(&description_element_node, "GainMapMin").unwrap_or([0.0; 3]);
-        let gain_map_max = Self::read_rgb_f32_value(&description_element_node, "GainMapMax").unwrap_or([0.0; 3]);
-        let gamma = Self::read_rgb_f32_value(&description_element_node, "Gamma").unwrap_or([1.0; 3]);
-        let offset_sdr = Self::read_rgb_f32_value(&description_element_node, "OffsetSDR").unwrap_or([0.015625; 3]);
-        let offset_hdr = Self::read_rgb_f32_value(&description_element_node, "OffsetHDR").unwrap_or([0.015625; 3]);
-        let hdr_capacity_min = Self::read_single_f32_value(&description_element_node, "HDRCapacityMin").unwrap_or(0.0);
-        let hdr_capacity_max = Self::read_single_f32_value(&description_element_node, "HDRCapacityMax")?;
+        let base_rendition_is_hdr =
+            Self::read_single_bool_value(&description_element_node, "BaseRenditionIsHDR")
+                .unwrap_or(false);
+        let gain_map_min =
+            Self::read_rgb_f32_value(&description_element_node, "GainMapMin").unwrap_or([0.0; 3]);
+        let gain_map_max =
+            Self::read_rgb_f32_value(&description_element_node, "GainMapMax").unwrap_or([0.0; 3]);
+        let gamma =
+            Self::read_rgb_f32_value(&description_element_node, "Gamma").unwrap_or([1.0; 3]);
+        let offset_sdr = Self::read_rgb_f32_value(&description_element_node, "OffsetSDR")
+            .unwrap_or([0.015625; 3]);
+        let offset_hdr = Self::read_rgb_f32_value(&description_element_node, "OffsetHDR")
+            .unwrap_or([0.015625; 3]);
+        let hdr_capacity_min =
+            Self::read_single_f32_value(&description_element_node, "HDRCapacityMin").unwrap_or(0.0);
+        let hdr_capacity_max =
+            Self::read_single_f32_value(&description_element_node, "HDRCapacityMax")?;
 
         Some(Self {
             base_rendition_is_hdr,
@@ -50,61 +61,84 @@ impl GainMapMetadata {
     }
 
     pub fn compute_weight_factor(&self, log2_max_display_boost: f32) -> f32 {
-        let unclamped_weight_factor = (log2_max_display_boost - self.hdr_capacity_min) / (self.hdr_capacity_max - self.hdr_capacity_min);
+        let unclamped_weight_factor = (log2_max_display_boost - self.hdr_capacity_min)
+            / (self.hdr_capacity_max - self.hdr_capacity_min);
         if !self.base_rendition_is_hdr {
             unclamped_weight_factor.clamp(0.0, 1.0)
-        }
-        else {
+        } else {
             1.0 - unclamped_weight_factor.clamp(0.0, 1.0)
         }
     }
 }
 
-impl GainMapMetadata{
-    fn read_single_bool_value(description_node: &roxmltree::Node<'_, '_>, name: &str) -> Option<bool> {
-        let attr = description_node.attributes()
+impl GainMapMetadata {
+    fn read_single_bool_value(
+        description_node: &roxmltree::Node<'_, '_>,
+        name: &str,
+    ) -> Option<bool> {
+        let attr = description_node
+            .attributes()
             .find(|attr| attr.name() == name);
         if let Some(attr) = attr {
             return attr.value().parse::<bool>().ok();
         }
 
-        let value_element_node = description_node.children().find(|node| node.tag_name().name() == name)?;
+        let value_element_node = description_node
+            .children()
+            .find(|node| node.tag_name().name() == name)?;
         let text = value_element_node.text()?;
         text.parse::<bool>().ok()
     }
 
-    fn read_single_f32_value(description_node: &roxmltree::Node<'_, '_>, name: &str) -> Option<f32> {
-        let attr = description_node.attributes()
+    fn read_single_f32_value(
+        description_node: &roxmltree::Node<'_, '_>,
+        name: &str,
+    ) -> Option<f32> {
+        let attr = description_node
+            .attributes()
             .find(|attr| attr.name() == name);
         if let Some(attr) = attr {
             return attr.value().parse::<f32>().ok();
         }
 
-        let value_element_node = description_node.children().find(|node| node.tag_name().name() == name)?;
+        let value_element_node = description_node
+            .children()
+            .find(|node| node.tag_name().name() == name)?;
         let text = value_element_node.text()?;
         text.parse::<f32>().ok()
     }
 
-    fn read_rgb_f32_value(description_node: &roxmltree::Node<'_, '_>, name: &str) -> Option<[f32; 3]> {
-        let attr = description_node.attributes()
+    fn read_rgb_f32_value(
+        description_node: &roxmltree::Node<'_, '_>,
+        name: &str,
+    ) -> Option<[f32; 3]> {
+        let attr = description_node
+            .attributes()
             .find(|attr| attr.name() == name);
         if let Some(attr) = attr {
             let value = attr.value().parse::<f32>().ok()?;
             return Some([value, value, value]);
         }
 
-        let value_element_node = description_node.children().find(|node| node.tag_name().name() == name)?;
+        let value_element_node = description_node
+            .children()
+            .find(|node| node.tag_name().name() == name)?;
 
         Self::read_seq_rgb_value(&value_element_node)
     }
 
     fn read_seq_rgb_value(value_element_node: &roxmltree::Node<'_, '_>) -> Option<[f32; 3]> {
-        let seq_element_node = value_element_node.children().find(|node| node.tag_name().name() == "Seq")?;
+        let seq_element_node = value_element_node
+            .children()
+            .find(|node| node.tag_name().name() == "Seq")?;
 
         let mut values = [0.0; 3];
         let mut index = 0;
 
-        for li_node in seq_element_node.children().filter(|node| node.tag_name().name() == "li") {
+        for li_node in seq_element_node
+            .children()
+            .filter(|node| node.tag_name().name() == "li")
+        {
             if index >= 3 {
                 break; // Ensure we only read up to 3 values
             }
